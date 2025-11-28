@@ -1,3 +1,10 @@
+## [0.4.13](https://github.com/weirdtangent/bluesnap/compare/v0.4.12...v0.4.13) (2025-11-28)
+
+
+### Bug Fixes
+
+* stop mixing legacy and new discovery topics in mqtt_bridge.py ([2d8d5e2](https://github.com/weirdtangent/bluesnap/commit/2d8d5e24dac1c5bff12df4d69e683d7898fe96f4))
+
 ## [0.4.12](https://github.com/weirdtangent/bluesnap/compare/v0.4.11...v0.4.12) (2025-11-28)
 
 ## [0.4.11](https://github.com/weirdtangent/bluesnap/compare/v0.4.10...v0.4.11) (2025-11-28)
