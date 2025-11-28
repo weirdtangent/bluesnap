@@ -1,3 +1,10 @@
+## [0.4.17](https://github.com/weirdtangent/bluesnap/compare/v0.4.16...v0.4.17) (2025-11-28)
+
+
+### Bug Fixes
+
+* user services need linger to survive logout ([63d6d21](https://github.com/weirdtangent/bluesnap/commit/63d6d219b0bb909836a32ddd27b0181d0989d76d))
+
 ## [0.4.16](https://github.com/weirdtangent/bluesnap/compare/v0.4.15...v0.4.16) (2025-11-28)
 
 ## [0.4.15](https://github.com/weirdtangent/bluesnap/compare/v0.4.14...v0.4.15) (2025-11-28)
