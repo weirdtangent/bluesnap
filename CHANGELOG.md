@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/weirdtangent/bluesnap/compare/v0.1.3...v0.2.0) (2025-11-28)
+
+
+### Features
+
+* add bluetooth group management to setup script ([41207f9](https://github.com/weirdtangent/bluesnap/commit/41207f9e97010f820478e2559fda9e8f4b920076))
+
 ## [0.1.3](https://github.com/weirdtangent/bluesnap/compare/v0.1.2...v0.1.3) (2025-11-28)
 
 
