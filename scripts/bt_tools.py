@@ -132,6 +132,8 @@ async def scan_devices(
     for command in (
         f"select {controller_id}",
         "power on",
+        "agent on",
+        "default-agent",
         "pairable on",
         "scan on",
     ):
@@ -193,6 +195,8 @@ async def handle_simple(args: CLIArgs, command: str) -> None:
         [
             f"select {controller_id}",
             "power on",
+            "agent on",
+            "default-agent",
             "pairable on",
             f"{command} {mac}",
         ]
@@ -205,7 +209,11 @@ async def handle_setup(args: CLIArgs) -> None:
 
     for action in ("pair", "trust", "connect"):
         print(f"Running {action} for {args.mac} ...")
-        await handle_simple(args, action)
+        try:
+            await handle_simple(args, action)
+        except RuntimeError as err:
+            print(f"{action} failed: {err}", file=sys.stderr)
+            break
 
 
 async def _async_main(argv: Iterable[str] | None = None) -> int:
