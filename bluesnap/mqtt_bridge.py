@@ -175,7 +175,11 @@ class MQTTBridge:
                 payload.update(extra)
             entities.append(("sensor", object_id, payload))
 
-        sensor("status", "Status", "{{ value_json.snapcast.connected }}")
+        sensor(
+            "status",
+            "Status",
+            '{{ "online" if value_json.snapcast.connected else "offline" }}',
+        )
         sensor(
             "snapcast_volume",
             "Snapcast Volume",
@@ -196,7 +200,7 @@ class MQTTBridge:
             sensor(
                 "bluetooth_connected",
                 "Bluetooth Connected",
-                "{{ value_json.bluetooth.connected }}",
+                '{{ "connected" if value_json.bluetooth.connected else "disconnected" }}',
             )
             sensor(
                 "bluetooth_speaker",
@@ -234,19 +238,19 @@ class MQTTBridge:
             sensor(
                 "load_1m",
                 "Load 1m",
-                "{{ value_json.load_1m }}",
+                "{{ value_json.load_1m | round(3) }}",
                 extra={"state_class": "measurement"},
             )
             sensor(
                 "load_5m",
                 "Load 5m",
-                "{{ value_json.load_5m }}",
+                "{{ value_json.load_5m | round(3) }}",
                 extra={"state_class": "measurement"},
             )
             sensor(
                 "load_15m",
                 "Load 15m",
-                "{{ value_json.load_15m }}",
+                "{{ value_json.load_15m | round(3) }}",
                 extra={"state_class": "measurement"},
             )
         if "temperature" in metrics:
