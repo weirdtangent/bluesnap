@@ -87,6 +87,8 @@ bluesnap-bt-tools scan --filter Speaker
 bluesnap-bt-tools setup --mac AA:BB:CC:DD:EE:FF
 ```
 
+If prompted for sudo (the CLI uses `sudo bluetoothctl` under the hood), enter your password.
+
 The scan output gives you the names/MACs to drop into `config/bluesnap.yaml`. Once the service
 is running, the controller will keep the configured speaker connected with its 10-second
 watchdog loop, and the MQTT bridge will expose telemetry/control entities in Home Assistant.

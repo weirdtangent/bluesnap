@@ -97,6 +97,7 @@ async def run_btctl(commands: list[str], timeout: int = 30) -> str:
     """
 
     proc = await asyncio.create_subprocess_exec(
+        "sudo",
         "bluetoothctl",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
