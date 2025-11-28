@@ -1,3 +1,10 @@
+## [0.4.18](https://github.com/weirdtangent/bluesnap/compare/v0.4.17...v0.4.18) (2025-11-28)
+
+
+### Bug Fixes
+
+* add missing user service enablement ([6665cbe](https://github.com/weirdtangent/bluesnap/commit/6665cbe512e80f396b26b58bce720bae0cdbe5c6))
+
 ## [0.4.17](https://github.com/weirdtangent/bluesnap/compare/v0.4.16...v0.4.17) (2025-11-28)
 
 
