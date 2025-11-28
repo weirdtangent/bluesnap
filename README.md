@@ -62,6 +62,18 @@ initial service orchestrator. Upcoming work will add:
    pass `--skip-systemd` and launch the bridge ad-hoc with `bluesnap-service`. Both commands
    default to `config/bluesnap.yaml`; use `--config` if you keep the file elsewhere.
 
+4. **Ensure console auto-login is enabled (required for audio stack)**
+
+   `bluesnap-setup` now configures Raspberry Pi OS to auto-login the `bluesnap`
+   user on tty1 so the PipeWire session starts at boot. If you prefer to do it
+   manually (or want to double-check), run `sudo raspi-config` and set:
+
+   ```
+   System Options → Boot / Auto Login → Console Autologin
+   ```
+
+   Reboot afterwards so the change takes effect.
+
 ## Configuration Reference
 
 The loader expects YAML at `config/bluesnap.yaml`. Every available field is documented in

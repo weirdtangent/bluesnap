@@ -103,74 +103,6 @@ def ensure_virtualenv(uv_path: str, venv_path: Path) -> None:
     run([uv_path, "pip", "install", "-e", ".[dev]"])
 
 
-def ensure_user_linger(user: str) -> None:
-    """Enable systemd user lingering so services survive logout."""
-
-    try:
-        result = subprocess.run(
-            ["loginctl", "show-user", user, "--property=Linger"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except subprocess.CalledProcessError as exc:  # pragma: no cover - depends on host
-        logging.warning("unable to query loginctl linger status: %s", exc)
-        return
-
-    if "Linger=yes" in result.stdout:
-        logging.info("linger already enabled for %s", user)
-        return
-
-    logging.info("enabling linger for %s", user)
-    run(["sudo", "loginctl", "enable-linger", user])
-
-
-def ensure_user_manager(user: str) -> None:
-    """Ensure the user@UID systemd instance is running so --user commands work."""
-
-    uid = pwd.getpwnam(user).pw_uid
-    unit = f"user@{uid}.service"
-    logging.info("starting user manager %s", unit)
-    run(["sudo", "systemctl", "start", unit], check=False)
-
-
-def ensure_user_services(user: str, services: list[str]) -> None:
-    """Enable and start user-level services (pipewire, wireplumber, etc.)."""
-
-    uid = pwd.getpwnam(user).pw_uid
-    runtime_dir = f"/run/user/{uid}"
-    run(["sudo", "install", "-d", "-m", "700", "-o", user, "-g", user, runtime_dir], check=False)
-    env = {
-        "XDG_RUNTIME_DIR": runtime_dir,
-        "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime_dir}/bus",
-    }
-
-    for unit in services:
-        logging.info("ensuring user service %s is enabled", unit)
-        result = subprocess.run(
-            [
-                "sudo",
-                "-u",
-                user,
-                "systemctl",
-                "--user",
-                "enable",
-                "--now",
-                unit,
-            ],
-            check=False,
-            env=env,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            logging.warning(
-                "failed to manage user service %s: %s",
-                unit,
-                result.stderr.strip(),
-            )
-
-
 def ensure_boot_script(repo_root: Path) -> None:
     boot_script = repo_root / "scripts" / "bluesnap-boot.sh"
     if not boot_script.exists():
@@ -218,6 +150,27 @@ def ensure_adapter_powered() -> None:
     run(["sudo", "bash", "-lc", command], check=False)
 
 
+def ensure_console_autologin(user: str) -> None:
+    """Configure tty1 to auto-login the specified user."""
+
+    dropin_dir = Path("/etc/systemd/system/getty@tty1.service.d")
+    desired = (
+        "[Service]\n"
+        "ExecStart=\n"
+        f"ExecStart=-/sbin/agetty --autologin {user} --noclear %I $TERM\n"
+    )
+    tmp = tempfile.NamedTemporaryFile("w", delete=False)
+    try:
+        tmp.write(desired)
+        tmp.flush()
+        run(["sudo", "install", "-D", "-m", "0644", tmp.name, str(dropin_dir / "autologin.conf")])
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
+    run(["sudo", "systemctl", "daemon-reload"])
+    run(["sudo", "systemctl", "restart", "getty@tty1.service"])
+    logging.info("enabled console auto-login for %s", user)
+
+
 def install_systemd_unit(repo_root: Path, config_path: Path) -> None:
     systemd_dir = repo_root / "systemd"
     template_path = systemd_dir / "bluesnap.service"
@@ -260,15 +213,7 @@ def main() -> int:
     ensure_apt_packages()
     uv_path = ensure_uv()
     ensure_virtualenv(uv_path, repo_root / args.venv)
-    ensure_user_linger(user)
-    ensure_user_services(
-        user,
-        [
-            "pipewire.service",
-            "pipewire-pulse.service",
-            "wireplumber.service",
-        ],
-    )
+    ensure_console_autologin(user)
     ensure_boot_script(repo_root)
     ensure_bluetooth_group()
     ensure_bluetooth_service()
