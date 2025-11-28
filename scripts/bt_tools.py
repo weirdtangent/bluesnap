@@ -23,6 +23,8 @@ from dataclasses import dataclass
 
 from bluesnap.utils import resolve_controller_identifier
 
+AGENT_CAPABILITY = "NoInputNoOutput"
+
 DEVICE_LINE = re.compile(
     r"Device (?P<mac>(?:[0-9A-F]{2}:){5}[0-9A-F]{2}) (?P<name>.+)", re.IGNORECASE
 )
@@ -132,7 +134,7 @@ async def scan_devices(
     for command in (
         f"select {controller_id}",
         "power on",
-        "agent on",
+        f"agent {AGENT_CAPABILITY}",
         "default-agent",
         "pairable on",
         "scan on",
@@ -195,7 +197,7 @@ async def handle_simple(args: CLIArgs, command: str) -> None:
         [
             f"select {controller_id}",
             "power on",
-            "agent on",
+            f"agent {AGENT_CAPABILITY}",
             "default-agent",
             "pairable on",
             f"{command} {mac}",
