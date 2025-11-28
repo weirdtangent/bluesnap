@@ -98,7 +98,7 @@ def ensure_venv_ownership(venv_path: Path) -> None:
 
 def ensure_virtualenv(uv_path: str, venv_path: Path) -> None:
     ensure_venv_ownership(venv_path)
-    run([uv_path, "venv", str(venv_path)])
+    run([uv_path, "venv", "--clear", str(venv_path)])
     ensure_venv_ownership(venv_path)
     run([uv_path, "pip", "install", "-e", ".[dev]"])
 
