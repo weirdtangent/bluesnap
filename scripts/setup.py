@@ -125,6 +125,26 @@ def ensure_user_linger(user: str) -> None:
     run(["sudo", "loginctl", "enable-linger", user])
 
 
+def ensure_user_services(user: str, services: list[str]) -> None:
+    """Enable and start user-level services (pipewire, wireplumber, etc.)."""
+
+    for unit in services:
+        logging.info("ensuring user service %s is enabled", unit)
+        run(
+            [
+                "sudo",
+                "-u",
+                user,
+                "systemctl",
+                "--user",
+                "enable",
+                "--now",
+                unit,
+            ],
+            check=False,
+        )
+
+
 def ensure_boot_script(repo_root: Path) -> None:
     boot_script = repo_root / "scripts" / "bluesnap-boot.sh"
     if not boot_script.exists():
@@ -215,6 +235,14 @@ def main() -> int:
     uv_path = ensure_uv()
     ensure_virtualenv(uv_path, repo_root / args.venv)
     ensure_user_linger(user)
+    ensure_user_services(
+        user,
+        [
+            "pipewire.service",
+            "pipewire-pulse.service",
+            "wireplumber.service",
+        ],
+    )
     ensure_boot_script(repo_root)
     ensure_bluetooth_group()
     ensure_bluetooth_service()
