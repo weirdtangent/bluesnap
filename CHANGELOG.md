@@ -1,3 +1,10 @@
+## [0.4.3](https://github.com/weirdtangent/bluesnap/compare/v0.4.2...v0.4.3) (2025-11-28)
+
+
+### Bug Fixes
+
+* turn off agent before pairing in bt_tools.py ([833f335](https://github.com/weirdtangent/bluesnap/commit/833f33523e006b79e6b4d451d08682a72f8f1c79))
+
 ## [0.4.2](https://github.com/weirdtangent/bluesnap/compare/v0.4.1...v0.4.2) (2025-11-28)
 
 
