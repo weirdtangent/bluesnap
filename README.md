@@ -83,10 +83,8 @@ source .venv/bin/activate
 # Scan for 20s, showing only names containing "Speaker"
 bluesnap-bt-tools scan --filter Speaker
 
-# Pair, trust, and connect the MAC you discovered
-bluesnap-bt-tools pair --mac AA:BB:CC:DD:EE:FF
-bluesnap-bt-tools trust --mac AA:BB:CC:DD:EE:FF
-bluesnap-bt-tools connect --mac AA:BB:CC:DD:EE:FF
+# Pair, trust, and connect the MAC you discovered in one step
+bluesnap-bt-tools setup --mac AA:BB:CC:DD:EE:FF
 ```
 
 The scan output gives you the names/MACs to drop into `config/bluesnap.yaml`. Once the service

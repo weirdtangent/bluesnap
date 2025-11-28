@@ -75,6 +75,8 @@ def parse_args(argv: Iterable[str]) -> CLIArgs:
     for action in ("pair", "trust", "connect", "remove"):
         cmd = sub.add_parser(action, help=f"{action.capitalize()} a device by MAC address")
         cmd.add_argument("--mac", required=True, help="Device MAC (AA:BB:CC:DD:EE:FF)")
+    combo = sub.add_parser("setup", help="Pair, trust, and connect in one step")
+    combo.add_argument("--mac", required=True, help="Device MAC (AA:BB:CC:DD:EE:FF)")
 
     argv_list = normalize_global_options(list(argv))
     parsed = parser.parse_args(argv_list)
@@ -198,6 +200,14 @@ async def handle_simple(args: CLIArgs, command: str) -> None:
     print(output.strip())
 
 
+async def handle_setup(args: CLIArgs) -> None:
+    """Pair, trust, and connect sequentially."""
+
+    for action in ("pair", "trust", "connect"):
+        print(f"Running {action} for {args.mac} ...")
+        await handle_simple(args, action)
+
+
 async def _async_main(argv: Iterable[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -205,6 +215,8 @@ async def _async_main(argv: Iterable[str] | None = None) -> int:
     try:
         if args.command == "scan":
             await handle_scan(args)
+        elif args.command == "setup":
+            await handle_setup(args)
         else:
             await handle_simple(args, args.command)
     except ValueError as err:
