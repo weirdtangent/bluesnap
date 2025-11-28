@@ -43,7 +43,7 @@ initial service orchestrator. Upcoming work will add:
 3. **Run the bluesnap system setup**
 
    ```bash
-   python scripts/setup.py --config config/bluesnap.yaml
+   bluesnap-setup --config config/bluesnap.yaml
    ```
 
    The setup helper will:
@@ -54,7 +54,7 @@ initial service orchestrator. Upcoming work will add:
    - Restart the service so your new code/config takes effect immediately.
 
    Running this after every `git pull` keeps the Pi in sync. If you prefer manual control,
-   pass `--skip-systemd` and launch `python scripts/bluesnap_service.py` yourself.
+   pass `--skip-systemd` and launch the bridge ad-hoc with `bluesnap-service --config config/bluesnap.yaml`.
 
 ## Configuration Reference
 
@@ -74,18 +74,18 @@ The loader expects YAML at `config/bluesnap.yaml`. Every available field is docu
 
 ## Bluetooth provisioning helper
 
-You can prep your speaker with the CLI in `scripts/bt_tools.py`.
-Activate the virtualenv, then:
+You can prep your speaker with the CLI (`bluesnap-bt-tools` console script). Activate the
+virtualenv (if not already on PATH), then:
 
 ```bash
 source .venv/bin/activate
 # Scan for 20s, showing only names containing "H6020"
-python scripts/bt_tools.py scan --filter H6020
+bluesnap-bt-tools scan --filter H6020
 
 # Pair, trust, and connect the MAC you discovered
-python scripts/bt_tools.py pair --mac AA:BB:CC:DD:EE:FF
-python scripts/bt_tools.py trust --mac AA:BB:CC:DD:EE:FF
-python scripts/bt_tools.py connect --mac AA:BB:CC:DD:EE:FF
+bluesnap-bt-tools pair --mac AA:BB:CC:DD:EE:FF
+bluesnap-bt-tools trust --mac AA:BB:CC:DD:EE:FF
+bluesnap-bt-tools connect --mac AA:BB:CC:DD:EE:FF
 ```
 
 The scan output gives you the names/MACs to drop into `config/bluesnap.yaml`. Once the service
@@ -98,8 +98,8 @@ watchdog loop, and the MQTT bridge will expose telemetry/control entities in Hom
 - View logs: `journalctl -u bluesnap.service -f`
 - Restart manually: `sudo systemctl restart bluesnap.service`
 
-Each run of `python scripts/setup.py` reapplies the systemd unit, reloads the daemon, and restarts
-the service, so it is safe to run after every `git pull`.
+Each run of `bluesnap-setup --config config/bluesnap.yaml` reapplies the systemd unit, reloads
+the daemon, and restarts the service, so it is safe to run after every `git pull`.
 
 ## Contributing
 

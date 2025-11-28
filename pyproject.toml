@@ -28,6 +28,11 @@ dev = [
     "ruff>=0.5",
 ]
 
+[project.scripts]
+bluesnap-service = "scripts.bluesnap_service:main"
+bluesnap-setup = "scripts.setup:main"
+bluesnap-bt-tools = "scripts.bt_tools:main"
+
 [tool.black]
 line-length = 100
 target-version = ["py311"]
