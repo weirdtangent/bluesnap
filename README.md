@@ -46,15 +46,7 @@ scaffolding (pyproject + formatting config). Upcoming work will add:
 
    Fill in your Snapserver host, MQTT broker, Bluetooth speaker MACs, and logging targets.
 
-3. **Run formatting and linting**
-
-   ```bash
-   source .venv/bin/activate
-   uv run ruff check .
-   uv run black --check .
-   ```
-
-4. **Next steps**
+3. **Next steps**
 
    Implementation of the runtime services is in progress. Once the upcoming `scripts/setup.py`
    is available it will handle installing apt packages (bluez, snapclient), refreshing the
