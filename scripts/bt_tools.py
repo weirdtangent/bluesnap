@@ -163,7 +163,9 @@ async def handle_simple(args: CLIArgs, command: str) -> None:
     print(output.strip())
 
 
-async def main(argv: Iterable[str]) -> int:
+async def main(argv: Iterable[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
     args = parse_args(argv)
     try:
         if args.command == "scan":

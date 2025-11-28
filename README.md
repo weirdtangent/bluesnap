@@ -79,8 +79,8 @@ virtualenv (if not already on PATH), then:
 
 ```bash
 source .venv/bin/activate
-# Scan for 20s, showing only names containing "H6020"
-bluesnap-bt-tools scan --filter H6020
+# Scan for 20s, showing only names containing "Speaker"
+bluesnap-bt-tools scan --filter Speaker
 
 # Pair, trust, and connect the MAC you discovered
 bluesnap-bt-tools pair --mac AA:BB:CC:DD:EE:FF
