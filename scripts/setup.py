@@ -103,6 +103,28 @@ def ensure_virtualenv(uv_path: str, venv_path: Path) -> None:
     run([uv_path, "pip", "install", "-e", ".[dev]"])
 
 
+def ensure_user_linger(user: str) -> None:
+    """Enable systemd user lingering so services survive logout."""
+
+    try:
+        result = subprocess.run(
+            ["loginctl", "show-user", user, "--property=Linger"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - depends on host
+        logging.warning("unable to query loginctl linger status: %s", exc)
+        return
+
+    if "Linger=yes" in result.stdout:
+        logging.info("linger already enabled for %s", user)
+        return
+
+    logging.info("enabling linger for %s", user)
+    run(["sudo", "loginctl", "enable-linger", user])
+
+
 def ensure_boot_script(repo_root: Path) -> None:
     boot_script = repo_root / "scripts" / "bluesnap-boot.sh"
     if not boot_script.exists():
@@ -183,6 +205,7 @@ def main() -> int:
         return 1
     repo_root = Path(__file__).resolve().parent.parent
     config_path = (repo_root / args.config).resolve()
+    user, _ = _current_user_group()
 
     if not config_path.exists():
         logging.error("configuration file not found at %s", config_path)
@@ -191,6 +214,7 @@ def main() -> int:
     ensure_apt_packages()
     uv_path = ensure_uv()
     ensure_virtualenv(uv_path, repo_root / args.venv)
+    ensure_user_linger(user)
     ensure_boot_script(repo_root)
     ensure_bluetooth_group()
     ensure_bluetooth_service()
