@@ -1,3 +1,10 @@
+## [0.4.11](https://github.com/weirdtangent/bluesnap/compare/v0.4.10...v0.4.11) (2025-11-28)
+
+
+### Bug Fixes
+
+* handle volume control ([572bfe1](https://github.com/weirdtangent/bluesnap/commit/572bfe16ba1f92892d302a39886f471ab529f9c2))
+
 ## [0.4.10](https://github.com/weirdtangent/bluesnap/compare/v0.4.9...v0.4.10) (2025-11-28)
 
 ## [0.4.9](https://github.com/weirdtangent/bluesnap/compare/v0.4.8...v0.4.9) (2025-11-28)
