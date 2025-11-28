@@ -1,3 +1,10 @@
+## [0.4.2](https://github.com/weirdtangent/bluesnap/compare/v0.4.1...v0.4.2) (2025-11-28)
+
+
+### Bug Fixes
+
+* specify default agent capability in bt_tools.py ([e88d3e4](https://github.com/weirdtangent/bluesnap/commit/e88d3e455c0812443b66edc4c20806ae2aeafb43))
+
 ## [0.4.1](https://github.com/weirdtangent/bluesnap/compare/v0.4.0...v0.4.1) (2025-11-28)
 
 
