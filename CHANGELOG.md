@@ -1,3 +1,10 @@
+## [0.4.5](https://github.com/weirdtangent/bluesnap/compare/v0.4.4...v0.4.5) (2025-11-28)
+
+
+### Bug Fixes
+
+* stop passing agent capability to bluetoothctl ([be37310](https://github.com/weirdtangent/bluesnap/commit/be373103c067c9c124833b5f26ff4cbc9878fff2))
+
 ## [0.4.4](https://github.com/weirdtangent/bluesnap/compare/v0.4.3...v0.4.4) (2025-11-28)
 
 
