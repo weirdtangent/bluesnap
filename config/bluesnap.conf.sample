@@ -1,7 +1,7 @@
 # Copy this file to config/bluesnap.yaml and customize it for your environment.
 identity:
-  instance_name: "bluesnap-livingroom"
-  friendly_name: "Living Room Bridge"
+  instance_name: "bluesnap-living-room"
+  friendly_name: "Bluesnap - Living Room"
   unique_suffix: "lr"
 
 mqtt:
@@ -25,22 +25,21 @@ bluetooth:
   speakers:
     - name: Living Room Speaker
       mac: "AA:BB:CC:DD:EE:FF"
-      keepalive_interval: 30
+      keepalive_interval: 10
     - name: Patio Speaker
       mac: "11:22:33:44:55:66"
-      keepalive_interval: 45
+      keepalive_interval: 30
   default_speaker: Living Room Speaker
 
 snapcast:
   server_host: snapserver.local
   server_port: 1704
-  control_port: 1780
+  control_port: 1705
   latency: 80
   buffer_ms: 250
   client_name: bluesnap-livingroom
   server_stream: default
-  audio_backend: bluealsa
-  audio_device: "bluealsa:HCI=hci0,DEV=AA_BB_CC_DD_EE_FF"
+  audio_backend: pipewire
 
 telemetry:
   interval: 15

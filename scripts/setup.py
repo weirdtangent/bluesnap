@@ -13,7 +13,10 @@ Responsibilities:
 from __future__ import annotations
 
 import argparse
+import grp
 import logging
+import os
+import pwd
 import shutil
 import subprocess
 import tempfile
@@ -71,8 +74,32 @@ def ensure_uv() -> str:
     return uv_path
 
 
+def _current_user_group() -> tuple[str, str]:
+    user = pwd.getpwuid(os.getuid()).pw_name
+    group = grp.getgrgid(os.getgid()).gr_name
+    return user, group
+
+
+def ensure_venv_ownership(venv_path: Path) -> None:
+    if not venv_path.exists():
+        return
+    venv_uid = venv_path.stat().st_uid
+    if venv_uid == os.getuid():
+        return
+    user, group = _current_user_group()
+    owner = pwd.getpwuid(venv_uid).pw_name
+    logging.warning(
+        "virtualenv at %s is owned by %s; fixing permissions",
+        venv_path,
+        owner,
+    )
+    run(["sudo", "chown", "-R", f"{user}:{group}", str(venv_path)])
+
+
 def ensure_virtualenv(uv_path: str, venv_path: Path) -> None:
+    ensure_venv_ownership(venv_path)
     run([uv_path, "venv", str(venv_path)])
+    ensure_venv_ownership(venv_path)
     run([uv_path, "pip", "install", "-e", ".[dev]"])
 
 
@@ -129,8 +156,13 @@ def install_systemd_unit(repo_root: Path, config_path: Path) -> None:
     if not template_path.exists():
         raise FileNotFoundError(f"service template missing: {template_path}")
     template = template_path.read_text()
-    content = template.replace("{{REPO_PATH}}", str(repo_root)).replace(
-        "{{CONFIG_PATH}}", str(config_path)
+    user, group = _current_user_group()
+    content = (
+        template.replace("{{REPO_PATH}}", str(repo_root))
+        .replace("{{CONFIG_PATH}}", str(config_path))
+        .replace("{{SERVICE_USER}}", user)
+        .replace("{{SERVICE_GROUP}}", group)
+        .replace("{{SERVICE_UID}}", str(os.getuid()))
     )
     with tempfile.NamedTemporaryFile("w", delete=False) as tmp:
         tmp.write(content)
@@ -146,6 +178,9 @@ def install_systemd_unit(repo_root: Path, config_path: Path) -> None:
 def main() -> int:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if os.geteuid() == 0:
+        logging.error("Do not run bluesnap-setup with sudo; rerun as the bluesnap user.")
+        return 1
     repo_root = Path(__file__).resolve().parent.parent
     config_path = (repo_root / args.config).resolve()
 

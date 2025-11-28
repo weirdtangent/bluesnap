@@ -6,6 +6,11 @@ StartLimitInterval=30
 
 [Service]
 Type=simple
+User={{SERVICE_USER}}
+Group={{SERVICE_GROUP}}
+Environment=XDG_RUNTIME_DIR=/run/user/{{SERVICE_UID}}
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{{SERVICE_UID}}/bus
+Environment=PIPEWIRE_RUNTIME_DIR=/run/user/{{SERVICE_UID}}
 WorkingDirectory={{REPO_PATH}}
 ExecStart={{REPO_PATH}}/scripts/bluesnap-boot.sh
 Restart=on-failure
