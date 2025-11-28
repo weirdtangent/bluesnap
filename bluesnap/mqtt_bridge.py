@@ -1,7 +1,6 @@
 """
 MQTT v5 bridge responsible for announcing Home Assistant discovery payloads,
-publishing telemetry, and listening for control commands (volume, reconnect,
-speaker selection).
+publishing telemetry, and listening for control commands (volume, reconnect).
 """
 
 from __future__ import annotations
@@ -36,7 +35,6 @@ class MQTTTopics:
     telemetry: str
     commands_volume: str
     commands_reconnect: str
-    commands_switch: str
 
 
 @dataclass
@@ -71,7 +69,6 @@ class MQTTBridge:
             telemetry=f"{topics['base']}/telemetry",
             commands_volume=f"{topics['base']}/command/volume",
             commands_reconnect=f"{topics['base']}/command/reconnect",
-            commands_switch=f"{topics['base']}/command/speaker",
         )
         self._connected_event = asyncio.Event()
 
@@ -107,7 +104,6 @@ class MQTTBridge:
             [
                 (self._topics.commands_volume, 1),
                 (self._topics.commands_reconnect, 1),
-                (self._topics.commands_switch, 1),
             ]
         )
         self.loop.call_soon_threadsafe(self._connected_event.set)
@@ -138,9 +134,6 @@ class MQTTBridge:
         elif topic == self._topics.commands_reconnect:
             await self.bluetooth.stop()
             await self.bluetooth.start()
-        elif topic == self._topics.commands_switch:
-            data = json.loads(payload)
-            self.bluetooth.update_speaker(data["name"])
         else:
             LOG.debug("no handler for topic %s", topic)
 

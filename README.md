@@ -8,7 +8,7 @@ acts as the glue between MusicAssistant → Snapserver → Pi → Bluetooth spea
 
 Bluesnap currently ships with:
 
-- A Bluetooth controller/watchdog that keeps the default speaker paired and reconnects
+- A Bluetooth controller/watchdog that keeps the configured speaker paired and reconnects
   automatically.
 - A Snapcast supervisor that drives `snapclient` via PipeWire or BlueALSA and exposes volume
   controls through MQTT.
@@ -45,7 +45,7 @@ Bluesnap currently ships with:
    $EDITOR config/bluesnap.yaml
    ```
 
-   Fill in your Snapserver host, MQTT broker, Bluetooth speaker MACs, and logging targets.
+   Fill in your Snapserver host, MQTT broker, Bluetooth speaker MAC, and logging targets.
 
 3. **Run the bluesnap system setup**
 
@@ -99,8 +99,8 @@ The loader expects YAML at `config/bluesnap.yaml`. Every available field is docu
 
 - `identity`: names and suffixes used for MQTT topics and discovery payloads.
 - `mqtt`: MQTT v5 broker, TLS options, classic Home Assistant discovery prefix, and base topic.
-- `bluetooth`: adapter name, list of speakers (name + MAC + keepalive), default speaker, and the
-  10-second reconnect interval.
+- `bluetooth`: adapter name and the single speaker definition (name + MAC + keepalive) plus the
+  10-second reconnect interval. Multiple speakers are not currently supported.
 - `snapcast`: server host/port, control port, latency/buffer targets, backend (alsa/pulse/pipewire/
   bluealsa), and optional explicit audio device string.
 - `telemetry`: interval and which metrics (cpu/memory/load/temp/bluetooth) to publish.

@@ -36,7 +36,7 @@ class BluetoothController:
     """
     Manage a bluetooth speaker connection using bluetoothctl commands.
 
-    The controller attempts to keep the default speaker connected, retrying
+    The controller attempts to keep the configured speaker connected, retrying
     every ``reconnect_interval`` seconds when it is unavailable. A keepalive
     loop periodically pings the device so that idle speakers do not go to sleep.
     """
@@ -49,7 +49,7 @@ class BluetoothController:
         loop: asyncio.AbstractEventLoop | None = None,
     ) -> None:
         self._config = config
-        self._speaker = config.resolve_default_speaker()
+        self._speaker = config.speaker
         self._callbacks = callbacks or ControllerCallbacks()
         self._loop = loop or asyncio.get_event_loop()
         self._controller_id = resolve_controller_identifier(config.adapter)
@@ -83,15 +83,6 @@ class BluetoothController:
             with suppress(asyncio.CancelledError):
                 await task
         self._tasks.clear()
-
-    def update_speaker(self, name: str) -> None:
-        """Switch to another declared speaker without restarting the controller."""
-        for candidate in self._config.speakers:
-            if candidate.name == name:
-                LOG.info("switching bluetooth controller to '%s'", candidate.name)
-                self._speaker = candidate
-                return
-        raise ValueError(f"Unknown speaker '{name}'")
 
     @property
     def active_speaker(self) -> BluetoothSpeakerConfig:

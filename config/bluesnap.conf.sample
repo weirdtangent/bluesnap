@@ -22,14 +22,10 @@ mqtt:
 bluetooth:
   adapter: hci0
   reconnect_interval: 10
-  speakers:
-    - name: Living Room Speaker
-      mac: "AA:BB:CC:DD:EE:FF"
-      keepalive_interval: 10
-    - name: Patio Speaker
-      mac: "11:22:33:44:55:66"
-      keepalive_interval: 30
-  default_speaker: Living Room Speaker
+  speaker:
+    name: Living Room Speaker
+    mac: "AA:BB:CC:DD:EE:FF"
+    keepalive_interval: 10
 
 snapcast:
   server_host: snapserver.local

@@ -90,28 +90,8 @@ class BluetoothSpeakerConfig(BaseModel):
 
 class BluetoothConfig(BaseModel):
     adapter: str = "hci0"
-    speakers: list[BluetoothSpeakerConfig]
-    default_speaker: str | None = None
+    speaker: BluetoothSpeakerConfig
     reconnect_interval: int = 10
-
-    @model_validator(mode="after")
-    def validate_default(self) -> BluetoothConfig:
-        if not self.speakers:
-            raise ValueError("At least one Bluetooth speaker must be defined")
-        if self.default_speaker:
-            names = {speaker.name for speaker in self.speakers}
-            if self.default_speaker not in names:
-                raise ValueError(
-                    f"Default speaker '{self.default_speaker}' not present in speakers list"
-                )
-        return self
-
-    def resolve_default_speaker(self) -> BluetoothSpeakerConfig:
-        target_name = self.default_speaker or self.speakers[0].name
-        for speaker in self.speakers:
-            if speaker.name == target_name:
-                return speaker
-        raise RuntimeError("Default speaker resolution failed; configuration is inconsistent")
 
 
 class SnapcastConfig(BaseModel):
@@ -176,7 +156,6 @@ class BluesnapConfig(BaseModel):
         _ = self.mqtt.resolved_base_topic(self.identity)
         _ = self.mqtt.resolved_client_id(self.identity)
         _ = self.snapcast.resolved_client_name(self.identity)
-        _ = self.bluetooth.resolve_default_speaker()
         return self
 
     def effective_topics(self) -> dict[str, str]:
