@@ -1,3 +1,10 @@
+## [0.4.8](https://github.com/weirdtangent/bluesnap/compare/v0.4.7...v0.4.8) (2025-11-28)
+
+
+### Bug Fixes
+
+* update startup steps in README; fix $HOME ([8124a02](https://github.com/weirdtangent/bluesnap/commit/8124a028e3a42e1db64ffd060bee7151f3faa6e2))
+
 ## [0.4.7](https://github.com/weirdtangent/bluesnap/compare/v0.4.6...v0.4.7) (2025-11-28)
 
 ## [0.4.6](https://github.com/weirdtangent/bluesnap/compare/v0.4.5...v0.4.6) (2025-11-28)
