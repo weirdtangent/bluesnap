@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/weirdtangent/bluesnap/compare/v0.3.2...v0.4.0) (2025-11-28)
+
+
+### Features
+
+* add setup command to bt_tools.py to pair, trust, and connect in one step ([89d520f](https://github.com/weirdtangent/bluesnap/commit/89d520f2181f0501b73c847e21f99d6c3e26efad))
+
 ## [0.3.2](https://github.com/weirdtangent/bluesnap/compare/v0.3.1...v0.3.2) (2025-11-28)
 
 
