@@ -37,6 +37,30 @@ class CLIArgs:
     name_filter: str | None = None
 
 
+def normalize_global_options(argv: list[str]) -> list[str]:
+    """Ensure adapter flag appears before subcommand."""
+
+    prefix: list[str] = []
+    remainder: list[str] = []
+    skip_next = False
+    for idx, token in enumerate(argv):
+        if skip_next:
+            skip_next = False
+            continue
+        if token.startswith("--adapter"):
+            if token == "--adapter":
+                if idx + 1 >= len(argv):
+                    raise ValueError("--adapter requires a value")
+                value = argv[idx + 1]
+                skip_next = True
+            else:
+                value = token.split("=", 1)[1]
+            prefix.extend(["--adapter", value])
+        else:
+            remainder.append(token)
+    return prefix + remainder
+
+
 def parse_args(argv: Iterable[str]) -> CLIArgs:
     parser = argparse.ArgumentParser(description="Bluetooth provisioning helper")
     parser.set_defaults(command=None)
@@ -52,9 +76,8 @@ def parse_args(argv: Iterable[str]) -> CLIArgs:
         cmd = sub.add_parser(action, help=f"{action.capitalize()} a device by MAC address")
         cmd.add_argument("--mac", required=True, help="Device MAC (AA:BB:CC:DD:EE:FF)")
 
-    argv_list = list(argv)
-    parse_fn = getattr(parser, "parse_intermixed_args", parser.parse_args)
-    parsed = parse_fn(argv_list)
+    argv_list = normalize_global_options(list(argv))
+    parsed = parser.parse_args(argv_list)
     return CLIArgs(
         command=parsed.command,
         mac=getattr(parsed, "mac", None),
