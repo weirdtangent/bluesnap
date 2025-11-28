@@ -21,6 +21,8 @@ import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from bluesnap.utils import resolve_controller_identifier
+
 DEVICE_LINE = re.compile(
     r"Device (?P<mac>(?:[0-9A-F]{2}:){5}[0-9A-F]{2}) (?P<name>.+)", re.IGNORECASE
 )
@@ -50,7 +52,9 @@ def parse_args(argv: Iterable[str]) -> CLIArgs:
         cmd = sub.add_parser(action, help=f"{action.capitalize()} a device by MAC address")
         cmd.add_argument("--mac", required=True, help="Device MAC (AA:BB:CC:DD:EE:FF)")
 
-    parsed = parser.parse_args(list(argv))
+    argv_list = list(argv)
+    parse_fn = getattr(parser, "parse_intermixed_args", parser.parse_args)
+    parsed = parse_fn(argv_list)
     return CLIArgs(
         command=parsed.command,
         mac=getattr(parsed, "mac", None),
@@ -83,7 +87,11 @@ async def run_btctl(commands: list[str], timeout: int = 30) -> str:
     return stdout.decode()
 
 
-async def scan_devices(adapter: str, duration: int, name_filter: str | None) -> dict[str, str]:
+async def scan_devices(
+    controller_id: str,
+    duration: int,
+    name_filter: str | None,
+) -> dict[str, str]:
     """
     Continuously read bluetoothctl output while scan is active and collect found devices.
     """
@@ -97,8 +105,9 @@ async def scan_devices(adapter: str, duration: int, name_filter: str | None) -> 
     assert proc.stdin and proc.stdout
 
     for command in (
-        f"select {adapter}",
+        f"select {controller_id}",
         "power on",
+        "pairable on",
         "scan on",
     ):
         proc.stdin.write(command.encode("utf-8") + b"\n")
@@ -142,7 +151,8 @@ def normalize_mac(mac: str | None) -> str:
 
 
 async def handle_scan(args: CLIArgs) -> None:
-    devices = await scan_devices(args.adapter, args.duration, args.name_filter)
+    controller_id = resolve_controller_identifier(args.adapter)
+    devices = await scan_devices(controller_id, args.duration, args.name_filter)
     if not devices:
         print("No devices discovered. Try increasing --duration or moving closer.")
         return
@@ -153,10 +163,12 @@ async def handle_scan(args: CLIArgs) -> None:
 
 async def handle_simple(args: CLIArgs, command: str) -> None:
     mac = normalize_mac(args.mac)
+    controller_id = resolve_controller_identifier(args.adapter)
     output = await run_btctl(
         [
-            f"select {args.adapter}",
+            f"select {controller_id}",
             "power on",
+            "pairable on",
             f"{command} {mac}",
         ]
     )

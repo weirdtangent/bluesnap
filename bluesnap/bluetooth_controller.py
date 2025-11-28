@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from .config import BluetoothConfig, BluetoothSpeakerConfig
+from .utils import resolve_controller_identifier
 
 LOG = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ class BluetoothController:
         self._speaker = config.resolve_default_speaker()
         self._callbacks = callbacks or ControllerCallbacks()
         self._loop = loop or asyncio.get_event_loop()
+        self._controller_id = resolve_controller_identifier(config.adapter)
 
         self._running = False
         self._tasks: set[asyncio.Task[None]] = set()
@@ -120,8 +122,9 @@ class BluetoothController:
     async def _prepare_adapter(self) -> None:
         """Select the adapter and ensure it is powered on and discoverable."""
         await self._run_btctl(
-            ["select", self._config.adapter],
+            ["select", self._controller_id],
             ["power", "on"],
+            ["pairable", "on"],
             ["agent", "on"],
             ["default-agent"],
         )
@@ -129,7 +132,7 @@ class BluetoothController:
     async def _trust_device(self, mac: str) -> None:
         """Mark the speaker as trusted so the OS reconnects automatically."""
         await self._run_btctl(
-            ["select", self._config.adapter],
+            ["select", self._controller_id],
             ["trust", mac],
         )
 
@@ -144,7 +147,7 @@ class BluetoothController:
         self._last_connect_attempt = now
         LOG.info("connecting bluetooth speaker '%s'", self._speaker.name)
         await self._run_btctl(
-            ["select", self._config.adapter],
+            ["select", self._controller_id],
             ["connect", self._speaker.mac],
         )
         if self._callbacks.on_connected:
@@ -153,7 +156,7 @@ class BluetoothController:
     async def _is_connected(self) -> bool:
         """Return True when bluetoothctl reports the device is connected."""
         output = await self._run_btctl(
-            ["select", self._config.adapter],
+            ["select", self._controller_id],
             ["info", self._speaker.mac],
         )
         for line in output.splitlines():
