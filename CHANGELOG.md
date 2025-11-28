@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/weirdtangent/bluesnap/compare/v0.3.1...v0.3.2) (2025-11-28)
+
+
+### Bug Fixes
+
+* normalize global options in bt_tools.py ([effb26b](https://github.com/weirdtangent/bluesnap/commit/effb26b63a60ecb7bb5b6f89aa0d4d8c1d228391))
+
 ## [0.3.1](https://github.com/weirdtangent/bluesnap/compare/v0.3.0...v0.3.1) (2025-11-28)
 
 # [0.3.0](https://github.com/weirdtangent/bluesnap/compare/v0.2.0...v0.3.0) (2025-11-28)
