@@ -1,3 +1,10 @@
+## [0.4.1](https://github.com/weirdtangent/bluesnap/compare/v0.4.0...v0.4.1) (2025-11-28)
+
+
+### Bug Fixes
+
+* add default-agent to bt_tools.py; watch for "not available" errors ([d8fb30a](https://github.com/weirdtangent/bluesnap/commit/d8fb30a362650a962dc13cda4c0ffbc14215eee4))
+
 # [0.4.0](https://github.com/weirdtangent/bluesnap/compare/v0.3.2...v0.4.0) (2025-11-28)
 
 
