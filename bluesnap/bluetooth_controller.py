@@ -58,6 +58,7 @@ class BluetoothController:
         self._tasks: set[asyncio.Task[None]] = set()
         self._last_keepalive = datetime.min
         self._last_connect_attempt = datetime.min
+        self._connected = False
 
     async def start(self) -> None:
         """Power on the adapter, trust the device, and begin watchdog loops."""
@@ -91,6 +92,14 @@ class BluetoothController:
                 self._speaker = candidate
                 return
         raise ValueError(f"Unknown speaker '{name}'")
+
+    @property
+    def active_speaker(self) -> BluetoothSpeakerConfig:
+        return self._speaker
+
+    @property
+    def connected(self) -> bool:
+        return self._connected
 
     async def _watchdog_loop(self) -> None:
         """Check connection status and reconnect when necessary."""
@@ -150,6 +159,7 @@ class BluetoothController:
             ["select", self._controller_id],
             ["connect", self._speaker.mac],
         )
+        self._connected = True
         if self._callbacks.on_connected:
             await self._callbacks.on_connected(self._speaker)
 
@@ -161,9 +171,12 @@ class BluetoothController:
         )
         for line in output.splitlines():
             if line.strip().lower().startswith("connected:"):
-                return line.strip().split(":")[1].strip().lower() == "yes"
+                result = line.strip().split(":")[1].strip().lower() == "yes"
+                self._connected = result
+                return result
         if self._callbacks.on_disconnected:
             await self._callbacks.on_disconnected(self._speaker)
+        self._connected = False
         return False
 
     def _spawn(self, coro: Awaitable[None], name: str) -> None:

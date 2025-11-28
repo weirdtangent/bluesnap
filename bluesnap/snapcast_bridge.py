@@ -12,6 +12,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 
+from snapcast.control.client import Snapclient
 from snapcast.control.server import Snapserver
 
 from .config import IdentityConfig, SnapcastConfig
@@ -58,6 +59,7 @@ class SnapcastManager:
             raise SnapclientNotFoundError("snapclient binary not found in PATH")
         self._control: Snapserver | None = None
         self._control_client_id: str | None = None
+        self._control_lock = asyncio.Lock()
 
     @property
     def status(self) -> SnapcastStatus:
@@ -110,8 +112,11 @@ class SnapcastManager:
         if not await self._ensure_control_client():
             LOG.warning("snapserver control unavailable; cannot toggle mute")
             return
-        assert self._control_client_id
-        volume = {"percent": self._control.client(self._control_client_id).volume, "muted": state}
+        client = await self._control_client()
+        if not client:
+            LOG.warning("snapserver control unavailable; cannot toggle mute")
+            return
+        volume = {"percent": client.volume, "muted": state}
         try:
             await self._control.client_volume(self._control_client_id, volume)
             LOG.info("set snapclient mute=%s", state)
@@ -130,8 +135,10 @@ class SnapcastManager:
             LOG.warning("snapclient exited with code %s", returncode)
             if not self._running:
                 break
+            self._control_client_id = None
             await asyncio.sleep(5)
             await self._ensure_process()
+            await self._ensure_control_client()
 
     async def _ensure_process(self) -> None:
         if self._process and self._process.returncode is None:
@@ -175,38 +182,54 @@ class SnapcastManager:
         return backend
 
     async def _ensure_control_client(self) -> bool:
-        if self._control is None:
-            try:
-                self._control = Snapserver(
-                    self._loop,
-                    self._config.server_host,
-                    port=self._config.control_port,
-                )
-                await self._control.start()
-                LOG.info(
-                    "connected to snapserver control at %s:%s",
-                    self._config.server_host,
-                    self._config.control_port,
-                )
-            except OSError as exc:
-                LOG.error("failed to connect to snapserver control: %s", exc)
-                self._control = None
-                return False
-        if not self._control_client_id:
-            resolved_name = self._config.resolved_client_name(self._identity)
-            for client in self._control.clients:
-                if client.friendly_name == resolved_name or client.identifier == resolved_name:
-                    self._control_client_id = client.identifier
-                    LOG.info("resolved snapclient id %s for '%s'", client.identifier, resolved_name)
-                    break
+        async with self._control_lock:
+            if self._control is None:
+                try:
+                    self._control = Snapserver(
+                        self._loop,
+                        self._config.server_host,
+                        port=self._config.control_port,
+                    )
+                    await self._control.start()
+                    LOG.info(
+                        "connected to snapserver control at %s:%s",
+                        self._config.server_host,
+                        self._config.control_port,
+                    )
+                except OSError as exc:
+                    LOG.error("failed to connect to snapserver control: %s", exc)
+                    self._control = None
+                    return False
             if not self._control_client_id:
-                LOG.warning(
-                    "snapclient named '%s' not found on control interface; available: %s",
-                    resolved_name,
-                    [client.friendly_name for client in self._control.clients],
-                )
-                return False
-        return True
+                resolved_name = self._config.resolved_client_name(self._identity)
+                for client in self._control.clients:
+                    if client.friendly_name == resolved_name or client.identifier == resolved_name:
+                        self._control_client_id = client.identifier
+                        LOG.info(
+                            "resolved snapclient id %s for '%s'", client.identifier, resolved_name
+                        )
+                        break
+                if not self._control_client_id:
+                    LOG.warning(
+                        "snapclient named '%s' not found on control interface; available: %s",
+                        resolved_name,
+                        [client.friendly_name for client in self._control.clients],
+                    )
+                    return False
+            return True
+
+    async def _control_client(self) -> Snapclient | None:
+        if not await self._ensure_control_client():
+            return None
+        try:
+            return self._control.client(self._control_client_id)  # type: ignore[arg-type]
+        except (KeyError, AttributeError):
+            self._control_client_id = None
+            return None
+
+    async def current_volume(self) -> int | None:
+        client = await self._control_client()
+        return client.volume if client else None
 
 
 __all__ = ["SnapcastManager", "SnapcastStatus", "SnapclientNotFoundError"]

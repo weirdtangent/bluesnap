@@ -16,6 +16,7 @@ from bluesnap.bluetooth_controller import BluetoothController
 from bluesnap.config import BluesnapConfig, load_config
 from bluesnap.mqtt_bridge import MQTTBridge
 from bluesnap.snapcast_bridge import SnapcastManager
+from bluesnap.telemetry import TelemetryPublisher
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,10 +46,12 @@ async def run_service(config_path: Path) -> None:
     bluetooth = BluetoothController(config.bluetooth, loop=loop)
     snapcast = SnapcastManager(config.snapcast, config.identity, loop=loop)
     mqtt_bridge = MQTTBridge(config, bluetooth, snapcast, loop=loop)
+    telemetry = TelemetryPublisher(config, bluetooth, snapcast, mqtt_bridge, loop=loop)
 
     await bluetooth.start()
     await snapcast.start()
     await mqtt_bridge.start()
+    telemetry.start()
 
     stop_event = asyncio.Event()
 
@@ -60,6 +63,7 @@ async def run_service(config_path: Path) -> None:
     loop.add_signal_handler(signal.SIGINT, _signal_handler)
 
     await stop_event.wait()
+    await telemetry.stop()
     await mqtt_bridge.stop()
     await snapcast.stop()
     await bluetooth.stop()
