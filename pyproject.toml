@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bluesnap"
+version = "0.1.0"
+description = "Snapcast-to-Bluetooth bridge with MQTT v5 telemetry for Home Assistant"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [{name = "Bluesnap Contributors"}]
+dependencies = [
+    "aiosyslog>=0.1.8",
+    "dbus-next>=0.2.3",
+    "paho-mqtt>=2.1.0",
+    "psutil>=5.9",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "snapcast>=2.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.4",
+    "mypy>=1.10",
+    "pytest>=8.3",
+    "ruff>=0.5",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = "(bluesnap|scripts|tests)/.*\\.py$"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "BLE", "UP"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra"
+pythonpath = ["."]

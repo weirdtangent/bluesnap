@@ -1,0 +1,61 @@
+# Copy this file to config/bluesnap.yaml and customize it for your environment.
+identity:
+  instance_name: "bluesnap-livingroom"
+  friendly_name: "Living Room Bridge"
+  unique_suffix: "lr"
+
+mqtt:
+  host: broker.local
+  port: 8883
+  username: bluesnap
+  password: secret
+  discovery_prefix: homeassistant
+  base_topic: bluesnap/lr
+  client_id: bluesnap-lr
+  keepalive: 60
+  tls:
+    enabled: true
+    ca_cert: /etc/ssl/certs/ca.pem
+    client_cert: /etc/ssl/certs/bluesnap.crt
+    client_key: /etc/ssl/private/bluesnap.key
+
+bluetooth:
+  adapter: hci0
+  reconnect_interval: 10
+  speakers:
+    - name: Living Room Speaker
+      mac: "AA:BB:CC:DD:EE:FF"
+      keepalive_interval: 30
+    - name: Patio Speaker
+      mac: "11:22:33:44:55:66"
+      keepalive_interval: 45
+  default_speaker: Living Room Speaker
+
+snapcast:
+  server_host: snapserver.local
+  server_port: 1704
+  control_port: 1780
+  latency: 80
+  buffer_ms: 250
+  client_name: bluesnap-livingroom
+  server_stream: default
+  audio_backend: bluealsa
+  audio_device: "bluealsa:HCI=hci0,DEV=AA_BB_CC_DD_EE_FF"
+
+telemetry:
+  interval: 15
+  metrics: [cpu, memory, load, temperature, bluetooth]
+
+watchdog:
+  watchdog_interval: 60
+  max_retries: 3
+  reboot_on_failure: true
+
+logging:
+  level: INFO
+  syslog:
+    enabled: true
+    host: logs.example.com
+    port: 6514
+    protocol: tcp
+    tls: true
