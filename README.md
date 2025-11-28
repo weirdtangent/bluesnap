@@ -8,20 +8,17 @@ can reuse wireless speakers that only expose Bluetooth.
 
 ## Current Status
 
-This repository currently contains the configuration schema, sample config, and project
-scaffolding (pyproject + formatting config). Upcoming work will add:
+This repository currently contains the configuration schema, sample config, Bluetooth
+controller/watchdog, Snapcast supervisor, MQTT v5 bridge, provisioning helpers, and the
+initial service orchestrator. Upcoming work will add:
 
-- A Bluetooth controller with a 10-second watchdog to reconnect dropped speakers.
-- A Snapcast client supervisor that binds the Snapcast audio stream to the Bluetooth sink.
-- An MQTT v5 bridge publishing discovery payloads (telemetry + volume control) and
-  listening for control commands from Home Assistant.
 - Telemetry + watchdog modules feeding MQTT and system logs.
 - An idempotent `scripts/setup.py` that installs dependencies, refreshes systemd units, and
   restarts services after each `git pull`.
 
 ## Getting Started
 
-1. **Install prerequisites, clone into `/opt`, & create a virtual environment with `uv`**
+1. **Install prerequisites and clone into `/opt`**
 
    ```bash
    sudo apt update
@@ -32,9 +29,6 @@ scaffolding (pyproject + formatting config). Upcoming work will add:
    sudo git clone https://github.com/weirdtangent/bluesnap.git
    sudo chown -R "$USER":"$USER" /opt/bluesnap
    cd /opt/bluesnap
-   uv venv .venv
-   source .venv/bin/activate
-   uv pip install -e '.[dev]'
    ```
 
 2. **Copy and edit the configuration**
@@ -46,11 +40,21 @@ scaffolding (pyproject + formatting config). Upcoming work will add:
 
    Fill in your Snapserver host, MQTT broker, Bluetooth speaker MACs, and logging targets.
 
-3. **Next steps**
+3. **Run the bluesnap system setup**
 
-   Implementation of the runtime services is in progress. Once the upcoming `scripts/setup.py`
-   is available it will handle installing apt packages (bluez, snapclient), refreshing the
-   systemd unit, and restarting the bridge so you can rapidly test new commits.
+   ```bash
+   python scripts/setup.py --config config/bluesnap.yaml
+   ```
+
+   The setup helper will:
+
+   - Install/refresh required apt packages (`bluez`, `snapclient`, `python3-venv`, `curl`).
+   - Ensure Astral's `uv` CLI is present, create/refresh `.venv`, and install Python deps.
+   - Install or update the bundled systemd unit so `bluesnap.service` starts on boot.
+   - Restart the service so your new code/config takes effect immediately.
+
+   Running this after every `git pull` keeps the Pi in sync. If you prefer manual control,
+   pass `--skip-systemd` and launch `python scripts/bluesnap_service.py` yourself.
 
 ## Configuration Reference
 
@@ -67,6 +71,35 @@ The loader expects YAML at `config/bluesnap.yaml`. Every available field is docu
 - `watchdog`: thresholds for restarting components or rebooting the Pi when repeated failures
   occur.
 - `logging`: log level plus optional remote syslog target.
+
+## Bluetooth provisioning helper
+
+You can prep your speaker with the CLI in `scripts/bt_tools.py`.
+Activate the virtualenv, then:
+
+```bash
+source .venv/bin/activate
+# Scan for 20s, showing only names containing "H6020"
+python scripts/bt_tools.py scan --filter H6020
+
+# Pair, trust, and connect the MAC you discovered
+python scripts/bt_tools.py pair --mac AA:BB:CC:DD:EE:FF
+python scripts/bt_tools.py trust --mac AA:BB:CC:DD:EE:FF
+python scripts/bt_tools.py connect --mac AA:BB:CC:DD:EE:FF
+```
+
+The scan output gives you the names/MACs to drop into `config/bluesnap.yaml`. Once the service
+is running, the controller will keep the configured speaker connected with its 10-second
+watchdog loop, and the MQTT bridge will expose telemetry/control entities in Home Assistant.
+
+## Service management
+
+- Check status: `sudo systemctl status bluesnap.service`
+- View logs: `journalctl -u bluesnap.service -f`
+- Restart manually: `sudo systemctl restart bluesnap.service`
+
+Each run of `python scripts/setup.py` reapplies the systemd unit, reloads the daemon, and restarts
+the service, so it is safe to run after every `git pull`.
 
 ## Contributing
 
