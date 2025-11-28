@@ -125,10 +125,21 @@ def ensure_user_linger(user: str) -> None:
     run(["sudo", "loginctl", "enable-linger", user])
 
 
+def ensure_user_manager(user: str) -> None:
+    """Ensure the user@UID systemd instance is running so --user commands work."""
+
+    uid = pwd.getpwnam(user).pw_uid
+    unit = f"user@{uid}.service"
+    logging.info("starting user manager %s", unit)
+    run(["sudo", "systemctl", "start", unit], check=False)
+
+
 def ensure_user_services(user: str, services: list[str]) -> None:
     """Enable and start user-level services (pipewire, wireplumber, etc.)."""
 
-    runtime_dir = f"/run/user/{pwd.getpwnam(user).pw_uid}"
+    uid = pwd.getpwnam(user).pw_uid
+    runtime_dir = f"/run/user/{uid}"
+    run(["sudo", "install", "-d", "-m", "700", "-o", user, "-g", user, runtime_dir], check=False)
     env = {
         "XDG_RUNTIME_DIR": runtime_dir,
         "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime_dir}/bus",
@@ -136,7 +147,7 @@ def ensure_user_services(user: str, services: list[str]) -> None:
 
     for unit in services:
         logging.info("ensuring user service %s is enabled", unit)
-        run(
+        result = subprocess.run(
             [
                 "sudo",
                 "-u",
@@ -149,7 +160,15 @@ def ensure_user_services(user: str, services: list[str]) -> None:
             ],
             check=False,
             env=env,
+            capture_output=True,
+            text=True,
         )
+        if result.returncode != 0:
+            logging.warning(
+                "failed to manage user service %s: %s",
+                unit,
+                result.stderr.strip(),
+            )
 
 
 def ensure_boot_script(repo_root: Path) -> None:
