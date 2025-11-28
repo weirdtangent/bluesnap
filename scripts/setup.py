@@ -20,6 +20,7 @@ import tempfile
 from pathlib import Path
 
 APT_PACKAGES = ["bluez", "snapclient", "python3-venv", "curl"]
+BLUETOOTH_GROUP = "bluetooth"
 SERVICE_NAME = "bluesnap.service"
 UV_INSTALL_SCRIPT = "https://astral.sh/uv/install.sh"
 
@@ -83,6 +84,14 @@ def ensure_boot_script(repo_root: Path) -> None:
     logging.info("ensured boot script is executable")
 
 
+def ensure_bluetooth_group() -> None:
+    """Ensure the current user belongs to the bluetooth group."""
+
+    user = Path.home().owner()
+    logging.info("adding %s to %s group (if needed)", user, BLUETOOTH_GROUP)
+    run(["sudo", "usermod", "-aG", BLUETOOTH_GROUP, user], check=False)
+
+
 def install_systemd_unit(repo_root: Path, config_path: Path) -> None:
     systemd_dir = repo_root / "systemd"
     template_path = systemd_dir / "bluesnap.service"
@@ -117,6 +126,7 @@ def main() -> int:
     uv_path = ensure_uv()
     ensure_virtualenv(uv_path, repo_root / args.venv)
     ensure_boot_script(repo_root)
+    ensure_bluetooth_group()
 
     if not args.skip_systemd:
         install_systemd_unit(repo_root, config_path)
