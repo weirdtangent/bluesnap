@@ -73,25 +73,26 @@ The loader expects YAML at `config/bluesnap.yaml`. Every available field is docu
   occur.
 - `logging`: log level plus optional remote syslog target.
 
-## Bluetooth provisioning helper
+## Manual Bluetooth provisioning
 
-You can prep your speaker with the CLI (`bluesnap-bt-tools` console script). Activate the
-virtualenv (if not already on PATH), then:
+Use `bluetoothctl` directly to pair/trust/connect your speaker, then copy the MAC into
+`config/bluesnap.yaml`. One common flow:
 
 ```bash
-source .venv/bin/activate
-# Scan for 20s, showing only names containing "Speaker"
-bluesnap-bt-tools scan --filter Speaker
-
-# Pair, trust, and connect the MAC you discovered in one step
-bluesnap-bt-tools setup --mac AA:BB:CC:DD:EE:FF
+sudo bluetoothctl
+[bluetooth]# select <controller_id>      # e.g. E4:5F:01:77:5E:1A
+[bluetooth]# power on
+[bluetooth]# pairable on
+[bluetooth]# scan on                     # watch for "Device <MAC> <name>"
+[bluetooth]# pair <MAC>                  # keep the speaker in pairing mode
+[bluetooth]# trust <MAC>
+[bluetooth]# connect <MAC>
+[bluetooth]# info <MAC>                  # confirm Paired/Trusted/Connected are "yes"
+[bluetooth]# quit
 ```
 
-If prompted for sudo (the CLI uses `sudo bluetoothctl` under the hood), enter your password.
-
-The scan output gives you the names/MACs to drop into `config/bluesnap.yaml`. Once the service
-is running, the controller will keep the configured speaker connected with its 10-second
-watchdog loop, and the MQTT bridge will expose telemetry/control entities in Home Assistant.
+Once paired and trusted, the Bluesnap controller keeps that speaker online with its 10-second
+watchdog loop, and the MQTT bridge exposes telemetry/control entities in Home Assistant.
 
 ## Service management
 
