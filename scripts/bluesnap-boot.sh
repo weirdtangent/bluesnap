@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Systemd services do not always populate HOME; derive it from passwd entry when unset.
+if [[ -z "${HOME:-}" ]]; then
+  HOME="$(getent passwd "$(id -un)" | cut -d: -f6)"
+fi
+export HOME
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 

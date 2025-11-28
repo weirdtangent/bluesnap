@@ -43,8 +43,12 @@ initial service orchestrator. Upcoming work will add:
 3. **Run the bluesnap system setup**
 
    ```bash
-   bluesnap-setup --config config/bluesnap.yaml
+   python3 scripts/setup.py
    ```
+
+   On the first run, this bootstraps `.venv` and installs the `bluesnap-setup` console script
+   inside `.venv/bin`. After that initial pass you can simply run `./.venv/bin/bluesnap-setup`
+   (or add `.venv/bin` to your `PATH`) to reapply the setup without referencing the Python file.
 
    The setup helper will:
 
@@ -55,7 +59,8 @@ initial service orchestrator. Upcoming work will add:
      running, unblock/power on the adapter, and restart the bridge so changes take effect.
 
    Running this after every `git pull` keeps the Pi in sync. If you prefer manual control,
-   pass `--skip-systemd` and launch the bridge ad-hoc with `bluesnap-service --config config/bluesnap.yaml`.
+   pass `--skip-systemd` and launch the bridge ad-hoc with `bluesnap-service`. Both commands
+   default to `config/bluesnap.yaml`; use `--config` if you keep the file elsewhere.
 
 ## Configuration Reference
 
@@ -100,7 +105,7 @@ watchdog loop, and the MQTT bridge exposes telemetry/control entities in Home As
 - View logs: `journalctl -u bluesnap.service -f`
 - Restart manually: `sudo systemctl restart bluesnap.service`
 
-Each run of `bluesnap-setup --config config/bluesnap.yaml` reapplies the systemd unit, reloads
+Each run of `bluesnap-setup` reapplies the systemd unit, reloads
 the daemon, and restarts the service, so it is safe to run after every `git pull`.
 
 ## Contributing
