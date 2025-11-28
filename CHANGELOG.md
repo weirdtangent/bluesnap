@@ -1,3 +1,10 @@
+## [0.4.9](https://github.com/weirdtangent/bluesnap/compare/v0.4.8...v0.4.9) (2025-11-28)
+
+
+### Bug Fixes
+
+* fix bluesnap.service template: permissions ([841286f](https://github.com/weirdtangent/bluesnap/commit/841286f65fce9edea323ca43c6821759c9481d46))
+
 ## [0.4.8](https://github.com/weirdtangent/bluesnap/compare/v0.4.7...v0.4.8) (2025-11-28)
 
 
