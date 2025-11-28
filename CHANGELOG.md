@@ -1,3 +1,5 @@
+## [0.0.1](https://github.com/weirdtangent/bluesnap/compare/v0.0.0...v0.0.1) (2025-11-28)
+
 # 1.0.0 (2025-11-28)
 
 
