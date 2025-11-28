@@ -127,9 +127,7 @@ class MQTTBridge:
     def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         payload = msg.payload.decode("utf-8")
         LOG.debug("mqtt message %s => %s", msg.topic, payload)
-        asyncio.run_coroutine_threadsafe(
-            self._handle_command(msg.topic, payload), self.loop
-        )
+        asyncio.run_coroutine_threadsafe(self._handle_command(msg.topic, payload), self.loop)
 
     async def _handle_command(self, topic: str, payload: str) -> None:
         if topic == self._topics.commands_volume:
