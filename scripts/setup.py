@@ -159,11 +159,19 @@ def ensure_console_autologin(user: str) -> None:
         "ExecStart=\n"
         f"ExecStart=-/sbin/agetty --autologin {user} --noclear %I $TERM\n"
     )
+    target = dropin_dir / "autologin.conf"
+    current = ""
+    if target.exists():
+        current = target.read_text()
+    if current == desired:
+        logging.info("console auto-login already configured for %s", user)
+        return
+
     tmp = tempfile.NamedTemporaryFile("w", delete=False)
     try:
         tmp.write(desired)
         tmp.flush()
-        run(["sudo", "install", "-D", "-m", "0644", tmp.name, str(dropin_dir / "autologin.conf")])
+        run(["sudo", "install", "-D", "-m", "0644", tmp.name, str(target)])
     finally:
         Path(tmp.name).unlink(missing_ok=True)
     run(["sudo", "systemctl", "daemon-reload"])

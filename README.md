@@ -1,20 +1,21 @@
 # Bluesnap Bridge
 
 Bluesnap is a Raspberry Pi bridge that keeps a Bluetooth speaker paired, listens to a
-Snapcast stream, and reports its health/controls to Home Assistant via MQTT v5 using the
-2024 `homeassistant/device/*` discovery topics. The project acts as the glue between
-MusicAssistant → Snapserver → Pi → Bluetooth speaker so an existing multi-room audio setup
-can reuse wireless speakers that only expose Bluetooth.
+Snapcast stream, and reports its health/controls to Home Assistant via MQTT v5. The project
+acts as the glue between MusicAssistant → Snapserver → Pi → Bluetooth speaker so an existing multi-room audio setup can reuse wireless speakers that only expose Bluetooth.
 
 ## Current Status
 
-This repository currently contains the configuration schema, sample config, Bluetooth
-controller/watchdog, Snapcast supervisor, MQTT v5 bridge, provisioning helpers, and the
-initial service orchestrator. Upcoming work will add:
+Bluesnap currently ships with:
 
-- Telemetry + watchdog modules feeding MQTT and system logs.
-- An idempotent `scripts/setup.py` that installs dependencies, refreshes systemd units, and
-  restarts services after each `git pull`.
+- A Bluetooth controller/watchdog that keeps the default speaker paired and reconnects
+  automatically.
+- A Snapcast supervisor that drives `snapclient` via PipeWire or BlueALSA and exposes volume
+  controls through MQTT.
+- A telemetry publisher that feeds MQTT-based sensors for Home Assistant, plus discovery for
+  the volume control.
+- An idempotent `scripts/setup.py` helper that installs dependencies, configures systemd, and
+  enables console auto-login so the audio stack survives reboots.
 
 ## Getting Started
 
@@ -74,13 +75,24 @@ initial service orchestrator. Upcoming work will add:
 
    Reboot afterwards so the change takes effect.
 
+5. **Verify the installation**
+
+   ```bash
+   sudo systemctl status bluesnap.service
+   journalctl -u bluesnap.service -n 50 --no-pager
+   sudo -u bluesnap snapclient --list-soundcards
+   ```
+
+   You should see `bluesnap.service` active, recent telemetry logs, and your Bluetooth
+   speaker listed as a PipeWire/BlueALSA soundcard.
+
 ## Configuration Reference
 
 The loader expects YAML at `config/bluesnap.yaml`. Every available field is documented in
 [`config/bluesnap.conf.sample`](config/bluesnap.conf.sample). Highlights:
 
 - `identity`: names and suffixes used for MQTT topics and discovery payloads.
-- `mqtt`: MQTT v5 broker, TLS options, `homeassistant/device/*` discovery prefix, and base topic.
+- `mqtt`: MQTT v5 broker, TLS options, classic Home Assistant discovery prefix, and base topic.
 - `bluetooth`: adapter name, list of speakers (name + MAC + keepalive), default speaker, and the
   10-second reconnect interval.
 - `snapcast`: server host/port, control port, latency/buffer targets, backend (alsa/pulse/pipewire/
@@ -119,6 +131,14 @@ watchdog loop, and the MQTT bridge exposes telemetry/control entities in Home As
 
 Each run of `bluesnap-setup` reapplies the systemd unit, reloads
 the daemon, and restarts the service, so it is safe to run after every `git pull`.
+
+### Audio backend notes
+
+The default configuration targets PipeWire on Raspberry Pi OS. Console auto-login is required so
+the per-user PipeWire session starts automatically; without it the speaker will disconnect after
+reboots or when no sessions are logged in. If you prefer BlueALSA instead, set
+`snapcast.audio_backend` to `bluealsa` and provide the `audio_device` identifier from
+`snapclient --list-soundcards`.
 
 ## Contributing
 
