@@ -154,18 +154,114 @@ class MQTTBridge:
     async def _publish_discovery(self) -> None:
         device_info = self._device_payload()
         friendly = self.config.identity.friendly_name
-        entities = [
-            (
-                "sensor",
-                "status",
-                {
-                    "name": f"{friendly} Status",
-                    "state_topic": self._topics.telemetry,
-                    "value_template": "{{ value_json.snapcast.connected }}",
-                    "device": device_info,
-                    "availability": [{"topic": self._topics.availability}],
+        entities: list[tuple[str, str, dict[str, Any]]] = []
+
+        def sensor(
+            object_id: str,
+            name: str,
+            template: str,
+            *,
+            extra: dict[str, Any] | None = None,
+        ) -> None:
+            payload: dict[str, Any] = {
+                "name": f"{friendly} {name}",
+                "state_topic": self._topics.telemetry,
+                "value_template": template,
+                "device": device_info,
+                "availability": [{"topic": self._topics.availability}],
+                "entity_category": "diagnostic",
+            }
+            if extra:
+                payload.update(extra)
+            entities.append(("sensor", object_id, payload))
+
+        sensor("status", "Status", "{{ value_json.snapcast.connected }}")
+        sensor(
+            "snapcast_volume",
+            "Snapcast Volume",
+            "{{ value_json.snapcast.volume }}",
+            extra={
+                "unit_of_measurement": "%",
+                "state_class": "measurement",
+            },
+        )
+        sensor(
+            "snapcast_restarts",
+            "Snapcast Restart Count",
+            "{{ value_json.snapcast.restart_count }}",
+            extra={"state_class": "total_increasing"},
+        )
+
+        if "bluetooth" in self.config.telemetry.metrics:
+            sensor(
+                "bluetooth_connected",
+                "Bluetooth Connected",
+                "{{ value_json.bluetooth.connected }}",
+            )
+            sensor(
+                "bluetooth_speaker",
+                "Bluetooth Speaker",
+                "{{ value_json.bluetooth.speaker }}",
+            )
+            sensor(
+                "bluetooth_mac",
+                "Bluetooth MAC",
+                "{{ value_json.bluetooth.mac }}",
+            )
+
+        metrics = set(self.config.telemetry.metrics)
+        if "cpu" in metrics:
+            sensor(
+                "cpu_percent",
+                "CPU Percent",
+                "{{ value_json.cpu_percent }}",
+                extra={
+                    "unit_of_measurement": "%",
+                    "state_class": "measurement",
                 },
-            ),
+            )
+        if "memory" in metrics:
+            sensor(
+                "memory_percent",
+                "Memory Percent",
+                "{{ value_json.memory_percent }}",
+                extra={
+                    "unit_of_measurement": "%",
+                    "state_class": "measurement",
+                },
+            )
+        if "load" in metrics:
+            sensor(
+                "load_1m",
+                "Load 1m",
+                "{{ value_json.load_1m }}",
+                extra={"state_class": "measurement"},
+            )
+            sensor(
+                "load_5m",
+                "Load 5m",
+                "{{ value_json.load_5m }}",
+                extra={"state_class": "measurement"},
+            )
+            sensor(
+                "load_15m",
+                "Load 15m",
+                "{{ value_json.load_15m }}",
+                extra={"state_class": "measurement"},
+            )
+        if "temperature" in metrics:
+            sensor(
+                "temperature_c",
+                "Temperature",
+                "{{ value_json.temperature_c }}",
+                extra={
+                    "unit_of_measurement": "°C",
+                    "device_class": "temperature",
+                    "state_class": "measurement",
+                },
+            )
+
+        entities.append(
             (
                 "number",
                 "volume",
@@ -180,8 +276,8 @@ class MQTTBridge:
                     "device": device_info,
                     "availability": [{"topic": self._topics.availability}],
                 },
-            ),
-        ]
+            )
+        )
         for component, object_id, payload in entities:
             unique = f"{self.config.identity.instance_name}_{object_id}"
             payload["unique_id"] = unique
