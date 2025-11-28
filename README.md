@@ -21,14 +21,20 @@ scaffolding (pyproject + formatting config). Upcoming work will add:
 
 ## Getting Started
 
-1. **Clone & create a virtual environment**
+1. **Install prerequisites, clone into `/opt`, & create a virtual environment with `uv`**
 
    ```bash
-   git clone git@github.com:your-org/bluesnap.git && cd bluesnap
-   python3 -m venv .venv
+   sudo apt update
+   sudo apt install -y git neovim curl
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   export PATH="$HOME/.local/bin:$PATH"  # ensure uv is on PATH for this shell
+   cd /opt
+   sudo git clone https://github.com/weirdtangent/bluesnap.git
+   sudo chown -R "$USER":"$USER" /opt/bluesnap
+   cd /opt/bluesnap
+   uv venv .venv
    source .venv/bin/activate
-   pip install --upgrade pip
-   pip install -e .[dev]
+   uv pip install -e '.[dev]'
    ```
 
 2. **Copy and edit the configuration**
@@ -44,8 +50,8 @@ scaffolding (pyproject + formatting config). Upcoming work will add:
 
    ```bash
    source .venv/bin/activate
-   ruff check .
-   black --check .
+   uv run ruff check .
+   uv run black --check .
    ```
 
 4. **Next steps**
