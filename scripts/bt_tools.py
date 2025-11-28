@@ -134,6 +134,8 @@ async def scan_devices(
     for command in (
         f"select {controller_id}",
         "power on",
+        "agent off",
+        "agent off",
         f"agent {AGENT_CAPABILITY}",
         "default-agent",
         "pairable on",
