@@ -1,3 +1,10 @@
+## [0.4.4](https://github.com/weirdtangent/bluesnap/compare/v0.4.3...v0.4.4) (2025-11-28)
+
+
+### Bug Fixes
+
+* run bluetoothctl with sudo ([bf2c00f](https://github.com/weirdtangent/bluesnap/commit/bf2c00fdddb2848c6f308091a1aead17eb6f9300))
+
 ## [0.4.3](https://github.com/weirdtangent/bluesnap/compare/v0.4.2...v0.4.3) (2025-11-28)
 
 
