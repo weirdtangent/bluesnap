@@ -128,6 +128,12 @@ def ensure_user_linger(user: str) -> None:
 def ensure_user_services(user: str, services: list[str]) -> None:
     """Enable and start user-level services (pipewire, wireplumber, etc.)."""
 
+    runtime_dir = f"/run/user/{pwd.getpwnam(user).pw_uid}"
+    env = {
+        "XDG_RUNTIME_DIR": runtime_dir,
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime_dir}/bus",
+    }
+
     for unit in services:
         logging.info("ensuring user service %s is enabled", unit)
         run(
@@ -142,6 +148,7 @@ def ensure_user_services(user: str, services: list[str]) -> None:
                 unit,
             ],
             check=False,
+            env=env,
         )
 
 
