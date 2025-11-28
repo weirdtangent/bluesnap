@@ -19,6 +19,12 @@ Bluesnap currently ships with:
 
 ## Getting Started
 
+> **Note:** You are responsible for getting Linux + Bluetooth audio working on your Pi.
+> Debian 13 (Trixie) never exposed our speaker after days of debugging, and even on
+> Debian 12 (Bookworm) we still had to do the usual pairing/audio troubleshooting. Make
+> sure your speaker shows up as an audio device (e.g., via PipeWire or BlueALSA) before
+> investing time in the steps below.
+
 1. **Install prerequisites and clone into `/opt`**
 
    ```bash
