@@ -1,3 +1,10 @@
+## [0.4.20](https://github.com/weirdtangent/bluesnap/compare/v0.4.19...v0.4.20) (2025-11-28)
+
+
+### Bug Fixes
+
+* yet more tries to fix user service enablement ([7dde40a](https://github.com/weirdtangent/bluesnap/commit/7dde40abb65ecfd02741c145285fc54fdba607c9))
+
 ## [0.4.19](https://github.com/weirdtangent/bluesnap/compare/v0.4.18...v0.4.19) (2025-11-28)
 
 
