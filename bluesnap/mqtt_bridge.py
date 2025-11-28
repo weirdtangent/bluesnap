@@ -127,11 +127,18 @@ class MQTTBridge:
     def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         payload = msg.payload.decode("utf-8")
         LOG.debug("mqtt message %s => %s", msg.topic, payload)
-        asyncio.run_coroutine_threadsafe(self._handle_command(msg.topic, payload), self.loop)
+        asyncio.run_coroutine_threadsafe(
+            self._handle_command(msg.topic, payload), self.loop
+        )
 
     async def _handle_command(self, topic: str, payload: str) -> None:
         if topic == self._topics.commands_volume:
-            await self.snapcast.set_volume(int(payload))
+            try:
+                volume = int(payload)
+            except ValueError:
+                LOG.warning("invalid volume payload %s", payload)
+                return
+            await self.snapcast.set_volume(volume)
         elif topic == self._topics.commands_reconnect:
             await self.bluetooth.stop()
             await self.bluetooth.start()
@@ -144,7 +151,9 @@ class MQTTBridge:
     async def publish_telemetry(self, data: dict[str, Any]) -> None:
         payload = json.dumps(data)
         LOG.debug("publishing telemetry: %s", payload)
-        self._client.publish(self._topics.telemetry, payload, qos=1, retain=False)
+        result = self._client.publish(self._topics.telemetry, payload, qos=1, retain=False)
+        if result.rc != mqtt.MQTT_ERR_SUCCESS:
+            LOG.warning("telemetry publish failed: %s", result.rc)
 
     async def _publish_discovery(self) -> None:
         device_info = self._device_payload()

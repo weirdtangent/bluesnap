@@ -12,6 +12,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 
+from snapcast.control.server import Snapserver
+
 from .config import IdentityConfig, SnapcastConfig
 
 LOG = logging.getLogger(__name__)
@@ -54,6 +56,8 @@ class SnapcastManager:
         self._snapclient_path = shutil.which("snapclient")
         if not self._snapclient_path:
             raise SnapclientNotFoundError("snapclient binary not found in PATH")
+        self._control: Snapserver | None = None
+        self._control_client_id: str | None = None
 
     @property
     def status(self) -> SnapcastStatus:
@@ -64,6 +68,7 @@ class SnapcastManager:
             return
         self._running = True
         await self._ensure_process()
+        await self._ensure_control_client()
         self._monitor_task = self._loop.create_task(self._monitor_loop(), name="snapclient-monitor")
 
     async def stop(self) -> None:
@@ -79,6 +84,10 @@ class SnapcastManager:
             with suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._process.wait(), timeout=10)
         self._process = None
+        if self._control:
+            self._control.stop()
+            self._control = None
+        self._control_client_id = None
 
     async def set_volume(self, value: int) -> None:
         """
@@ -86,10 +95,28 @@ class SnapcastManager:
         """
 
         value = max(0, min(100, value))
-        await self._run_snapctl("volume", str(value))
+        if not await self._ensure_control_client():
+            LOG.warning("snapserver control unavailable; cannot set volume")
+            return
+        assert self._control_client_id
+        volume = {"percent": value, "muted": False}
+        try:
+            await self._control.client_volume(self._control_client_id, volume)
+            LOG.info("set snapclient volume to %s", value)
+        except (OSError, RuntimeError) as exc:
+            LOG.error("failed to set snapclient volume via RPC: %s", exc)
 
     async def mute(self, state: bool) -> None:
-        await self._run_snapctl("mute", "true" if state else "false")
+        if not await self._ensure_control_client():
+            LOG.warning("snapserver control unavailable; cannot toggle mute")
+            return
+        assert self._control_client_id
+        volume = {"percent": self._control.client(self._control_client_id).volume, "muted": state}
+        try:
+            await self._control.client_volume(self._control_client_id, volume)
+            LOG.info("set snapclient mute=%s", state)
+        except (OSError, RuntimeError) as exc:
+            LOG.error("failed to set snapclient mute via RPC: %s", exc)
 
     async def _monitor_loop(self) -> None:
         while self._running:
@@ -147,24 +174,39 @@ class SnapcastManager:
             return "bluealsa"
         return backend
 
-    async def _run_snapctl(self, *args: str) -> None:
-        snapctl = shutil.which("snapctl")
-        if not snapctl:
-            raise FileNotFoundError("snapctl binary not found in PATH")
-        proc = await asyncio.create_subprocess_exec(
-            snapctl,
-            "--host",
-            self._config.server_host,
-            "--port",
-            str(self._config.control_port),
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            raise RuntimeError(f"snapctl {' '.join(args)} failed: {stderr.decode().strip()}")
-        LOG.debug("snapctl: %s", stdout.decode().strip())
+    async def _ensure_control_client(self) -> bool:
+        if self._control is None:
+            try:
+                self._control = Snapserver(
+                    self._loop,
+                    self._config.server_host,
+                    port=self._config.control_port,
+                )
+                await self._control.start()
+                LOG.info(
+                    "connected to snapserver control at %s:%s",
+                    self._config.server_host,
+                    self._config.control_port,
+                )
+            except OSError as exc:
+                LOG.error("failed to connect to snapserver control: %s", exc)
+                self._control = None
+                return False
+        if not self._control_client_id:
+            resolved_name = self._config.resolved_client_name(self._identity)
+            for client in self._control.clients:
+                if client.friendly_name == resolved_name or client.identifier == resolved_name:
+                    self._control_client_id = client.identifier
+                    LOG.info("resolved snapclient id %s for '%s'", client.identifier, resolved_name)
+                    break
+            if not self._control_client_id:
+                LOG.warning(
+                    "snapclient named '%s' not found on control interface; available: %s",
+                    resolved_name,
+                    [client.friendly_name for client in self._control.clients],
+                )
+                return False
+        return True
 
 
 __all__ = ["SnapcastManager", "SnapcastStatus", "SnapclientNotFoundError"]
