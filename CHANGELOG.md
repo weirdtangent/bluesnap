@@ -1,3 +1,10 @@
+## [0.4.15](https://github.com/weirdtangent/bluesnap/compare/v0.4.14...v0.4.15) (2025-11-28)
+
+
+### Bug Fixes
+
+* needed discovery messages for all legacy entities ([c4a7498](https://github.com/weirdtangent/bluesnap/commit/c4a749865d42d306f02313b5d4c1f00ddf72ecca))
+
 ## [0.4.14](https://github.com/weirdtangent/bluesnap/compare/v0.4.13...v0.4.14) (2025-11-28)
 
 
