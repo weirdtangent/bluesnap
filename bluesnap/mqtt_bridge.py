@@ -32,6 +32,7 @@ ControlHandler = Callable[[dict[str, Any]], asyncio.Future | asyncio.Task | None
 @dataclass
 class MQTTTopics:
     discovery_device: str
+    discovery_legacy: str
     availability: str
     telemetry: str
     commands_volume: str
@@ -67,6 +68,7 @@ class MQTTBridge:
         topics = self.config.effective_topics()
         self._topics = MQTTTopics(
             discovery_device=f"{topics['discovery']}",
+            discovery_legacy=self.config.mqtt.discovery_prefix.rstrip("/"),
             availability=f"{topics['base']}/status",
             telemetry=f"{topics['base']}/telemetry",
             commands_volume=f"{topics['base']}/command/volume",
@@ -146,32 +148,42 @@ class MQTTBridge:
 
     async def _publish_discovery(self) -> None:
         device_info = self._device_payload()
-        base = self._topics.discovery_device
-        entities = {
-            "sensor_bluesnap_status": {
-                "component": "sensor",
-                "name": f"{self.config.identity.friendly_name} Status",
-                "state_topic": self._topics.telemetry,
-                "value_template": "{{ value_json.snapcast.connected }}",
-                "device": device_info,
-                "availability": [{"topic": self._topics.availability}],
-            },
-            "number_volume": {
-                "component": "number",
-                "name": f"{self.config.identity.friendly_name} Volume",
-                "command_topic": self._topics.commands_volume,
-                "state_topic": self._topics.telemetry,
-                "value_template": "{{ value_json.snapcast.volume }}",
-                "min": 0,
-                "max": 100,
-                "step": 1,
-                "device": device_info,
-                "availability": [{"topic": self._topics.availability}],
-            },
-        }
-        for object_id, payload in entities.items():
-            topic = f"{base}/{object_id}/config"
+        friendly = self.config.identity.friendly_name
+        entities = [
+            (
+                "sensor",
+                "status",
+                {
+                    "name": f"{friendly} Status",
+                    "state_topic": self._topics.telemetry,
+                    "value_template": "{{ value_json.snapcast.connected }}",
+                    "device": device_info,
+                    "availability": [{"topic": self._topics.availability}],
+                },
+            ),
+            (
+                "number",
+                "volume",
+                {
+                    "name": f"{friendly} Volume",
+                    "command_topic": self._topics.commands_volume,
+                    "state_topic": self._topics.telemetry,
+                    "value_template": "{{ value_json.snapcast.volume }}",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "device": device_info,
+                    "availability": [{"topic": self._topics.availability}],
+                },
+            ),
+        ]
+        for component, object_id, payload in entities:
+            unique = f"{self.config.identity.instance_name}_{object_id}"
+            payload["unique_id"] = unique
+            topic = f"{self._topics.discovery_device}/{component}_{object_id}/config"
             self._client.publish(topic, json.dumps(payload), retain=True, qos=1)
+            legacy_topic = f"{self._topics.discovery_legacy}/{component}/{unique}/config"
+            self._client.publish(legacy_topic, json.dumps(payload), retain=True, qos=1)
 
     def _device_payload(self) -> dict[str, Any]:
         return {
