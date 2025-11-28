@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/weirdtangent/bluesnap/compare/v0.2.0...v0.3.0) (2025-11-28)
+
+
+### Features
+
+* add system checks to setup script ([a928802](https://github.com/weirdtangent/bluesnap/commit/a928802a183d6272d39d8931d2143d0342afe52a))
+
 # [0.2.0](https://github.com/weirdtangent/bluesnap/compare/v0.1.3...v0.2.0) (2025-11-28)
 
 
