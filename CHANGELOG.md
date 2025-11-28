@@ -1,3 +1,10 @@
+## [0.1.3](https://github.com/weirdtangent/bluesnap/compare/v0.1.2...v0.1.3) (2025-11-28)
+
+
+### Bug Fixes
+
+* rename main function to _async_main ([dec143f](https://github.com/weirdtangent/bluesnap/commit/dec143fe3b7604445226f378f9298a3ad7b94d54))
+
 ## [0.1.2](https://github.com/weirdtangent/bluesnap/compare/v0.1.1...v0.1.2) (2025-11-28)
 
 
