@@ -1,3 +1,10 @@
+## [0.4.19](https://github.com/weirdtangent/bluesnap/compare/v0.4.18...v0.4.19) (2025-11-28)
+
+
+### Bug Fixes
+
+* needs env to set those services to user-linger ([ba67af1](https://github.com/weirdtangent/bluesnap/commit/ba67af106c71beef7fa890618253c3bdd06736dc))
+
 ## [0.4.18](https://github.com/weirdtangent/bluesnap/compare/v0.4.17...v0.4.18) (2025-11-28)
 
 
