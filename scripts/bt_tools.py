@@ -121,6 +121,7 @@ async def scan_devices(
     """
 
     proc = await asyncio.create_subprocess_exec(
+        "sudo",
         "bluetoothctl",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
@@ -174,6 +175,62 @@ def normalize_mac(mac: str | None) -> str:
     return cleaned
 
 
+def attribute_matches(output: str, attribute: str, expected: str) -> bool:
+    attr = attribute.strip().lower().rstrip(":")
+    expected_value = expected.strip().lower()
+    for line in output.splitlines():
+        stripped = line.strip()
+        if ":" not in stripped:
+            continue
+        key, value = stripped.split(":", 1)
+        if key.strip().lower() == attr:
+            return value.strip().lower() == expected_value
+    return False
+
+
+async def wait_for_attribute(
+    controller_id: str,
+    mac: str,
+    attribute: str,
+    expected: str,
+    timeout: int = 15,
+) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    attribute = attribute.strip().lower()
+    while loop.time() < deadline:
+        try:
+            info = await run_btctl(
+                [
+                    f"select {controller_id}",
+                    f"info {mac}",
+                ]
+            )
+        except RuntimeError as err:
+            message = str(err).lower()
+            if "not available" in message:
+                await run_btctl(
+                    [
+                        f"select {controller_id}",
+                        "scan on",
+                    ]
+                )
+                await asyncio.sleep(2)
+                await run_btctl(
+                    [
+                        f"select {controller_id}",
+                        "scan off",
+                    ]
+                )
+                await asyncio.sleep(1)
+                continue
+            raise
+        if attribute_matches(info, attribute, expected):
+            return
+        await asyncio.sleep(1)
+    raise RuntimeError(f"{attribute} did not become {expected}")
+
+
 async def handle_scan(args: CLIArgs) -> None:
     controller_id = resolve_controller_identifier(args.adapter)
     devices = await scan_devices(controller_id, args.duration, args.name_filter)
@@ -197,6 +254,12 @@ async def handle_simple(args: CLIArgs, command: str) -> None:
         ]
     )
     print(output.strip())
+    if command == "pair":
+        await wait_for_attribute(controller_id, mac, "paired", "yes")
+    elif command == "trust":
+        await wait_for_attribute(controller_id, mac, "trusted", "yes")
+    elif command == "connect":
+        await wait_for_attribute(controller_id, mac, "connected", "yes")
 
 
 async def handle_setup(args: CLIArgs) -> None:
