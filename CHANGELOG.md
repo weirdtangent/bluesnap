@@ -1,3 +1,10 @@
+## [0.4.14](https://github.com/weirdtangent/bluesnap/compare/v0.4.13...v0.4.14) (2025-11-28)
+
+
+### Bug Fixes
+
+* setup bug when keeping existing venv ([b4059cb](https://github.com/weirdtangent/bluesnap/commit/b4059cb4d0ce6afd5f195ac908202b41aeb0aa80))
+
 ## [0.4.13](https://github.com/weirdtangent/bluesnap/compare/v0.4.12...v0.4.13) (2025-11-28)
 
 
