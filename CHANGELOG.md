@@ -1,3 +1,10 @@
+## [0.4.6](https://github.com/weirdtangent/bluesnap/compare/v0.4.5...v0.4.6) (2025-11-28)
+
+
+### Bug Fixes
+
+* run each bluetoothctl command with sudo in bt_tools.py ([937d27d](https://github.com/weirdtangent/bluesnap/commit/937d27daa9d96814d42ec32a6e8bfb9d9d4417b0))
+
 ## [0.4.5](https://github.com/weirdtangent/bluesnap/compare/v0.4.4...v0.4.5) (2025-11-28)
 
 
