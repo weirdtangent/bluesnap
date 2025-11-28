@@ -89,7 +89,38 @@ def ensure_bluetooth_group() -> None:
 
     user = Path.home().owner()
     logging.info("adding %s to %s group (if needed)", user, BLUETOOTH_GROUP)
+    result = subprocess.run(
+        ["groups", user],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if BLUETOOTH_GROUP in result.stdout.split():
+        logging.info("%s already in %s group", user, BLUETOOTH_GROUP)
+        return
     run(["sudo", "usermod", "-aG", BLUETOOTH_GROUP, user], check=False)
+    logging.warning(
+        "Added %s to %s group. You must log out/in (or reboot) for this to take effect.",
+        user,
+        BLUETOOTH_GROUP,
+    )
+
+
+def ensure_bluetooth_service() -> None:
+    logging.info("ensuring bluetooth.service is enabled and running")
+    run(["sudo", "systemctl", "enable", "bluetooth.service"])
+    run(["sudo", "systemctl", "restart", "bluetooth.service"])
+
+
+def ensure_rfkill_unblocked() -> None:
+    logging.info("unblocking bluetooth via rfkill")
+    run(["sudo", "rfkill", "unblock", "bluetooth"], check=False)
+
+
+def ensure_adapter_powered() -> None:
+    logging.info("attempting to power on bluetooth adapter")
+    command = "printf 'power on\nquit\n' | bluetoothctl"
+    run(["sudo", "bash", "-lc", command], check=False)
 
 
 def install_systemd_unit(repo_root: Path, config_path: Path) -> None:
@@ -127,6 +158,9 @@ def main() -> int:
     ensure_virtualenv(uv_path, repo_root / args.venv)
     ensure_boot_script(repo_root)
     ensure_bluetooth_group()
+    ensure_bluetooth_service()
+    ensure_rfkill_unblocked()
+    ensure_adapter_powered()
 
     if not args.skip_systemd:
         install_systemd_unit(repo_root, config_path)

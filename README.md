@@ -51,7 +51,8 @@ initial service orchestrator. Upcoming work will add:
    - Install/refresh required apt packages (`bluez`, `snapclient`, `python3-venv`, `curl`).
    - Ensure Astral's `uv` CLI is present, create/refresh `.venv`, and install Python deps.
    - Install or update the bundled systemd unit so `bluesnap.service` starts on boot.
-   - Restart the service so your new code/config takes effect immediately.
+   - Add your user to the `bluetooth` group (requires re-login), ensure the BlueZ service is
+     running, unblock/power on the adapter, and restart the bridge so changes take effect.
 
    Running this after every `git pull` keeps the Pi in sync. If you prefer manual control,
    pass `--skip-systemd` and launch the bridge ad-hoc with `bluesnap-service --config config/bluesnap.yaml`.
