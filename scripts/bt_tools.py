@@ -163,7 +163,7 @@ async def handle_simple(args: CLIArgs, command: str) -> None:
     print(output.strip())
 
 
-async def main(argv: Iterable[str] | None = None) -> int:
+async def _async_main(argv: Iterable[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     args = parse_args(argv)
@@ -181,5 +181,9 @@ async def main(argv: Iterable[str] | None = None) -> int:
     return 0
 
 
+def main(argv: Iterable[str] | None = None) -> int:
+    return asyncio.run(_async_main(argv))
+
+
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main(sys.argv[1:])))
+    raise SystemExit(main())
