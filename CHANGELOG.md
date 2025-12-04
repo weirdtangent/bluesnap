@@ -1,3 +1,5 @@
+## [0.4.25](https://github.com/weirdtangent/bluesnap/compare/v0.4.24...v0.4.25) (2025-12-04)
+
 ## [0.4.24](https://github.com/weirdtangent/bluesnap/compare/v0.4.23...v0.4.24) (2025-11-28)
 
 ## [0.4.23](https://github.com/weirdtangent/bluesnap/compare/v0.4.22...v0.4.23) (2025-11-28)
