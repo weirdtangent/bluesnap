@@ -1,3 +1,6 @@
+// Note: @semantic-release/changelog and @semantic-release/git are not used
+// because they require pushing commits to main, which is blocked by branch
+// protection rules. Release notes are included in GitHub Releases instead.
 module.exports = {
   branches: ["main"],
   plugins: [
@@ -18,25 +21,11 @@ module.exports = {
           { type: "style", release: "patch" },
           { type: "test", release: "patch" },
           { breaking: true, release: "major" },
-          { type: "*", release: "patch" }, // fallback for non-conventional commits
+          { type: "*", release: "patch" },
         ],
       },
     ],
     "@semantic-release/release-notes-generator",
-    [
-      "@semantic-release/changelog",
-      {
-        changelogFile: "CHANGELOG.md",
-      },
-    ],
-    [
-      "@semantic-release/git",
-      {
-        assets: ["CHANGELOG.md"],
-        message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
-      },
-    ],
     "@semantic-release/github",
   ],
 };
-
