@@ -153,4 +153,8 @@ reboots or when no sessions are logged in. If you prefer BlueALSA instead, set
 - Logging statements should use double quotes, log device names instead of raw IDs, and wrap
   raw `device_id` values in parentheses when they must be logged.
 
+## Contributors
+
+- [@weirdtangent](https://github.com/weirdtangent)
+
 MIT Licensed.
