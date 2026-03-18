@@ -78,7 +78,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiosyslog", specifier = ">=0.1.8" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=24.4" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=25.1" },
     { name = "dbus-next", specifier = ">=0.2.3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "paho-mqtt", specifier = ">=2.1.0" },
