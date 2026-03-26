@@ -32,7 +32,7 @@ jobs:
         run: ruff check .
 
       - name: Black format check
-        run: black --check .
+        run: black --check --target-version py312 .
 
   release:
     name: Semantic Release
