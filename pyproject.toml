@@ -24,7 +24,7 @@ dependencies = [
 dev = [
     "black>=25.1",
     "mypy>=1.10",
-    "pytest>=8.3",
+    "pytest>=9.0.3",
     "ruff>=0.5",
 ]
 
