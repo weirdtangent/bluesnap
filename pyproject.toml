@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.25"]
+requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -11,21 +11,21 @@ license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [{name = "Bluesnap Contributors"}]
 dependencies = [
-    "aiosyslog>=0.1.8",
+    "aiosyslog>=0.1.9",
     "dbus-next>=0.2.3",
     "paho-mqtt>=2.1.0",
-    "psutil>=5.9",
-    "pydantic>=2.7",
-    "pyyaml>=6.0",
-    "snapcast>=2.2",
+    "psutil>=7.2.2",
+    "pydantic>=2.13.3",
+    "pyyaml>=6.0.3",
+    "snapcast>=2.3.7",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "black>=25.1",
-    "mypy>=1.10",
+    "black>=26.3.1",
+    "mypy>=1.20.2",
     "pytest>=9.0.3",
-    "ruff>=0.5",
+    "ruff>=0.15.12",
 ]
 
 [project.scripts]
