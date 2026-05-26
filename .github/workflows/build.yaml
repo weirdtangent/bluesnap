@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   lint:
-    name: Lint & Format
+    name: Lint & Format (${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -38,12 +38,24 @@ jobs:
       - name: Black format check
         run: black --check --target-version py312 .
 
+  # Stable check name for branch protection — succeeds only if every
+  # matrix entry of `lint` succeeded.
+  lint-gate:
+    name: Lint & Format
+    needs: lint
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify lint matrix succeeded
+        if: contains(needs.lint.result, 'failure') || contains(needs.lint.result, 'cancelled') || contains(needs.lint.result, 'skipped')
+        run: exit 1
+
   release:
     name: Semantic Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs:
-      - lint
+      - lint-gate
 
     outputs:
       published: ${{ steps.semrel.outputs.new_release_published }}
