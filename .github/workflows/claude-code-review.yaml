@@ -32,7 +32,8 @@ jobs:
       - name: Check if review should be skipped
         id: skip-check
         run: |
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+          if [ "${{ github.actor }}" = "dependabot[bot]" ] || \
+             [ "${{ github.event.pull_request.user.login }}" = "dependabot[bot]" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Skipping Claude review for dependabot PR"
           elif [ "${{ github.event_name }}" = "pull_request" ] && \
