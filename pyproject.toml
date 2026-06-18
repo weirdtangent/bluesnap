@@ -24,8 +24,8 @@ dependencies = [
 dev = [
     "black>=26.5.1",
     "mypy>=2.1.0",
-    "pytest>=9.0.3",
-    "ruff>=0.15.16",
+    "pytest>=9.1.0",
+    "ruff>=0.15.17",
 ]
 
 [project.scripts]
