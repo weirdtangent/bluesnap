@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.30.1"]
+requires = ["hatchling>=1.31.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -23,9 +23,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "black>=26.5.1",
-    "mypy>=2.1.0",
+    "mypy>=2.3.0",
     "pytest>=9.1.1",
-    "ruff>=0.15.20",
+    "ruff>=0.15.21",
 ]
 
 [project.scripts]
