@@ -30,13 +30,13 @@ jobs:
       - name: Install tooling
         run: |
           python -m pip install --upgrade pip
-          pip install ruff black
+          pip install ruff
 
       - name: Ruff lint
         run: ruff check .
 
-      - name: Black format check
-        run: black --check --target-version py312 .
+      - name: Ruff format check
+        run: ruff format --check .
 
   # Stable check name for branch protection — succeeds only if every
   # matrix entry of `lint` succeeded.
