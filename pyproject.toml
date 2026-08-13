@@ -22,7 +22,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black>=26.5.1",
     "mypy>=2.3.0",
     "pytest>=9.1.1",
     "ruff>=0.16.2",
@@ -31,11 +30,6 @@ dev = [
 [project.scripts]
 bluesnap-service = "scripts.bluesnap_service:main"
 bluesnap-setup = "scripts.setup:main"
-
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-include = "(bluesnap|scripts|tests)/.*\\.py$"
 
 [tool.ruff]
 line-length = 100

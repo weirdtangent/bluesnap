@@ -155,9 +155,7 @@ def ensure_console_autologin(user: str) -> None:
 
     dropin_dir = Path("/etc/systemd/system/getty@tty1.service.d")
     desired = (
-        "[Service]\n"
-        "ExecStart=\n"
-        f"ExecStart=-/sbin/agetty --autologin {user} --noclear %I $TERM\n"
+        f"[Service]\nExecStart=\nExecStart=-/sbin/agetty --autologin {user} --noclear %I $TERM\n"
     )
     target = dropin_dir / "autologin.conf"
     current = ""

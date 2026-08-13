@@ -148,7 +148,7 @@ reboots or when no sessions are logged in. If you prefer BlueALSA instead, set
 
 ## Contributing
 
-- Run `ruff check .` and `black .` before pushing.
+- Run `ruff check .` and `ruff format .` before pushing.
 - Keep filenames/directories lowercase (e.g., `bluesnap/...`).
 - Logging statements should use double quotes, log device names instead of raw IDs, and wrap
   raw `device_id` values in parentheses when they must be logged.
