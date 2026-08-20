@@ -32,6 +32,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff
 
+      # Nothing in this workflow consumes uv.lock, so drift against
+      # pyproject.toml would otherwise go unnoticed indefinitely.
+      - name: Set up uv
+        if: matrix.python-version == '3.12'
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Lockfile up to date
+        if: matrix.python-version == '3.12'
+        run: uv lock --check
+
       - name: Ruff lint
         run: ruff check .
 
