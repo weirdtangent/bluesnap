@@ -82,7 +82,19 @@ def disable_stock_snapclient() -> None:
         text=True,
         check=False,
     )
-    if unit not in listed.stdout:
+    if listed.returncode != 0:
+        # An empty stdout here means "the query failed", not "the unit is absent" --
+        # e.g. no system bus. Treating those the same would silently skip the disable
+        # and leave a conflicting client enabled, which is the exact failure this
+        # function exists to prevent, so say so loudly and try anyway: disabling a
+        # unit that turns out not to exist is harmless.
+        logging.warning(
+            "could not query systemd for %s (exit %s): %s -- attempting to disable anyway",
+            unit,
+            listed.returncode,
+            (listed.stderr or "").strip() or "no error output",
+        )
+    elif unit not in listed.stdout:
         logging.info("%s is not installed; nothing to disable", unit)
         return
     logging.info("disabling packaged %s (Bluesnap runs its own snapclient)", unit)
