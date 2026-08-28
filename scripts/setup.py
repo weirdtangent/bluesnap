@@ -4,6 +4,8 @@ Idempotent setup helper for the Bluesnap bridge.
 
 Responsibilities:
 1. Ensure apt packages (bluez, snapclient, python3-venv, curl) are installed.
+1a. Disable Debian's snapclient.service, which that install enables and which
+    would otherwise run a second, broken client alongside the bridge's own.
 2. Ensure Astral's uv CLI is available.
 3. Create/refresh the project virtualenv and install dependencies.
 4. Install or update the systemd unit so the bridge starts on boot.
@@ -57,6 +59,46 @@ def ensure_apt_packages() -> None:
     logging.info("ensuring apt packages: %s", ", ".join(APT_PACKAGES))
     run(["sudo", "apt-get", "update"])
     run(["sudo", "apt-get", "install", "-y", *APT_PACKAGES])
+
+
+def disable_stock_snapclient() -> None:
+    """Disable Debian's packaged snapclient.service.
+
+    The apt package enables and starts ``snapclient.service`` on install, but Bluesnap
+    supervises its own snapclient subprocess (see ``bluesnap/snapcast_bridge.py``) as
+    the Bluesnap user -- the one that owns the PipeWire session. The packaged unit runs
+    as ``_snapclient``, which has no such session and cannot open the default device: it
+    exits with ``Can't open default, error: Host is down`` as soon as it reaches a
+    server, and spins in mDNS discovery when it cannot find one.
+
+    Either way it is a second snapclient contending for the same speaker and registering
+    against the same Snapserver as the bridge's own client, which makes an unreachable
+    room look like a Bluesnap fault when it is not.
+    """
+    unit = "snapclient.service"
+    listed = subprocess.run(
+        ["systemctl", "list-unit-files", unit],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if listed.returncode != 0:
+        # An empty stdout here means "the query failed", not "the unit is absent" --
+        # e.g. no system bus. Treating those the same would silently skip the disable
+        # and leave a conflicting client enabled, which is the exact failure this
+        # function exists to prevent, so say so loudly and try anyway: disabling a
+        # unit that turns out not to exist is harmless.
+        logging.warning(
+            "could not query systemd for %s (exit %s): %s -- attempting to disable anyway",
+            unit,
+            listed.returncode,
+            (listed.stderr or "").strip() or "no error output",
+        )
+    elif unit not in listed.stdout:
+        logging.info("%s is not installed; nothing to disable", unit)
+        return
+    logging.info("disabling packaged %s (Bluesnap runs its own snapclient)", unit)
+    run(["sudo", "systemctl", "disable", "--now", unit], check=False)
 
 
 def ensure_uv() -> str:
@@ -217,6 +259,9 @@ def main() -> int:
         return 1
 
     ensure_apt_packages()
+    # Must follow ensure_apt_packages(): installing the snapclient package is what
+    # enables the conflicting unit in the first place.
+    disable_stock_snapclient()
     uv_path = ensure_uv()
     ensure_virtualenv(uv_path, repo_root / args.venv)
     ensure_console_autologin(user)
