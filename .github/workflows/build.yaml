@@ -30,7 +30,7 @@ jobs:
       - name: Install tooling
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          pip install "ruff==0.16.7"
 
       # Nothing in this workflow consumes uv.lock, so drift against
       # pyproject.toml would otherwise go unnoticed indefinitely.
