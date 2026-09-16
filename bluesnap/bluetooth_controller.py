@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import tempfile
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -19,11 +21,27 @@ from .utils import resolve_controller_identifier
 
 LOG = logging.getLogger(__name__)
 
-# bluetoothctl attached to a pipe (no TTY) will, when the adapter or the remote
-# device misbehaves, spew its prompt/agent chatter in a tight loop -- observed at
-# ~110 MB/s of stdout while pinning a core. Cap what we are willing to buffer and
-# always reap the child, or a single stuck invocation eats the whole Pi.
-_MAX_OUTPUT_BYTES = 1 << 20  # 1 MiB
+# bluetoothctl (BlueZ 5.66) allocates ~900 MB of anonymous heap whenever its
+# stdout is a PIPE. Measured on the same host, same command, same adapter:
+#
+#     stdout -> /dev/null        1 MB
+#     stdout -> regular file     1 MB
+#     stdout -> pipe (drained) 943 MB
+#     stdout -> pipe (ignored) 907 MB
+#
+# Draining the pipe promptly makes no difference, and it is not specific to the
+# interactive form -- `bluetoothctl info <mac>` piped to `cat` does it too. So we
+# capture output through temporary FILES rather than pipes. Only stdin stays a
+# pipe; that side is fine.
+#
+# Everything else here (the cap, the timeout, the unconditional reap) is belt and
+# braces for a wedged child, which is a separate failure from the pipe balloon.
+_MAX_OUTPUT_BYTES = 1 << 20  # 1 MiB -- most we hand back to a caller
+# Capturing to a file removes the pipe deadlock, but it also means a spewing child
+# writes to disk instead of blocking. Poll the size and cut it off well before that
+# matters on a Pi's SD card.
+_MAX_CAPTURE_BYTES = 32 << 20  # 32 MiB
+_CAPTURE_POLL_SECONDS = 0.25
 _DEFAULT_BTCTL_TIMEOUT = 30
 
 
@@ -212,44 +230,50 @@ class BluetoothController:
         command_groups: tuple[list[str], ...],
         timeout: int,
     ) -> str:
-        proc = await asyncio.create_subprocess_exec(
-            "bluetoothctl",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
+        # Files, not pipes -- see the note at the top of this module.
+        with (
+            tempfile.TemporaryFile() as out_f,
+            tempfile.TemporaryFile() as err_f,
+        ):
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl",
+                stdin=asyncio.subprocess.PIPE,
+                stdout=out_f,
+                stderr=err_f,
+            )
             try:
-                stdout, stderr, truncated = await asyncio.wait_for(
-                    self._drive_btctl(proc, command_groups),
-                    timeout=timeout,
-                )
-            except TimeoutError:
-                raise BluetoothCommandError(f"bluetoothctl timed out after {timeout}s") from None
-            # Signalled explicitly rather than inferred from proc.returncode: a
-            # finite child can overrun the cap and still exit, and the event loop
-            # may have reaped it by the time we look, leaving returncode == 0.
-            if truncated:
-                raise BluetoothCommandError("bluetoothctl produced runaway output")
-            if proc.returncode != 0:
-                raise BluetoothCommandError(stderr.decode(errors="replace").strip())
-            return stdout.decode(errors="replace")
-        finally:
-            # Unconditional: wait_for() cancels the *coroutine*, it does not kill
-            # the child. Without this, every timeout orphans a spinning process.
-            await self._reap(proc)
+                try:
+                    await asyncio.wait_for(
+                        self._drive_btctl(proc, command_groups, (out_f, err_f)),
+                        timeout=timeout,
+                    )
+                except TimeoutError:
+                    raise BluetoothCommandError(
+                        f"bluetoothctl timed out after {timeout}s"
+                    ) from None
+                stdout, out_truncated = _read_capped(out_f, _MAX_OUTPUT_BYTES)
+                stderr, err_truncated = _read_capped(err_f, _MAX_OUTPUT_BYTES)
+                # Either stream overrunning means the child misbehaved. Checking
+                # only stdout would let a stderr overrun exit "successfully", and
+                # would hand back a silently truncated message on failure.
+                if out_truncated or err_truncated:
+                    raise BluetoothCommandError("bluetoothctl produced runaway output")
+                if proc.returncode != 0:
+                    raise BluetoothCommandError(stderr.decode(errors="replace").strip())
+                return stdout.decode(errors="replace")
+            finally:
+                # wait_for() cancels the *coroutine*, it does not kill the child.
+                # Without this, every timeout orphans a spinning process.
+                await self._reap(proc)
 
     async def _drive_btctl(
         self,
         proc: asyncio.subprocess.Process,
         command_groups: tuple[list[str], ...],
-    ) -> tuple[bytes, bytes, bool]:
-        """
-        Feed commands to bluetoothctl, then collect its output with a size cap.
-
-        Returns ``(stdout, stderr, truncated)``.
-        """
-        assert proc.stdin and proc.stdout and proc.stderr
+        capture_files,
+    ) -> None:
+        """Feed commands to bluetoothctl and wait for it to exit."""
+        assert proc.stdin
         for group in command_groups:
             cmd = " ".join(group)
             LOG.debug("btctl <<< %s", cmd)
@@ -262,20 +286,20 @@ class BluetoothController:
         with suppress(BrokenPipeError, ConnectionResetError):
             await proc.stdin.wait_closed()
 
-        # Read the streams in sequence rather than concurrently. Reading both
-        # under one gather() deadlocks on a runaway child: capping stdout stops
-        # us draining it, the child then blocks mid-write and never exits, so
-        # the stderr reader waits on an EOF that can never arrive.
-        stdout, truncated = await _read_capped(proc.stdout, _MAX_OUTPUT_BYTES)
-        if truncated:
-            # The child may now be blocked writing into a pipe nobody is draining.
-            # Don't wait on it -- return and let the finally-block kill it.
-            return stdout, b"", True
-        stderr, truncated = await _read_capped(proc.stderr, _MAX_OUTPUT_BYTES)
-        if truncated:
-            return stdout, stderr, True
-        await proc.wait()
-        return stdout, stderr, False
+        waiter = asyncio.ensure_future(proc.wait())
+        try:
+            while True:
+                done, _ = await asyncio.wait({waiter}, timeout=_CAPTURE_POLL_SECONDS)
+                if waiter in done:
+                    return
+                captured = sum(os.fstat(f.fileno()).st_size for f in capture_files)
+                if captured > _MAX_CAPTURE_BYTES:
+                    raise BluetoothCommandError("bluetoothctl produced runaway output")
+        finally:
+            if not waiter.done():
+                waiter.cancel()
+                with suppress(asyncio.CancelledError):
+                    await waiter
 
     @staticmethod
     async def _reap(proc: asyncio.subprocess.Process) -> None:
@@ -289,28 +313,20 @@ class BluetoothController:
         LOG.warning("killed unresponsive bluetoothctl (pid %s)", proc.pid)
 
 
-async def _read_capped(stream: asyncio.StreamReader, limit: int) -> tuple[bytes, bool]:
+def _read_capped(handle, limit: int) -> tuple[bytes, bool]:
     """
-    Read a stream until EOF, keeping at most ``limit`` bytes.
+    Read a captured-output file, keeping at most ``limit`` bytes.
 
-    Returns ``(data, truncated)``. Stops early once the cap is exceeded rather
-    than draining politely: a runaway bluetoothctl never reaches EOF, and
-    reading it to completion is exactly the unbounded-buffer bug this guards
-    against.
+    Returns ``(data, truncated)``. Truncation means the child produced more than
+    we are willing to hand back -- the cap is exceeded only by going over it, so
+    output of exactly ``limit`` bytes is not reported as truncated.
     """
-    chunks: list[bytes] = []
-    total = 0
-    while True:
-        chunk = await stream.read(65536)
-        if not chunk:
-            # Clean EOF. Output of exactly ``limit`` bytes lands here, not in the
-            # truncated branch -- the cap is exceeded only by going over it.
-            return b"".join(chunks), False
-        chunks.append(chunk)
-        total += len(chunk)
-        if total > limit:
-            LOG.warning("bluetoothctl output exceeded %d bytes; truncating", limit)
-            return b"".join(chunks)[:limit], True
+    handle.seek(0)
+    data = handle.read(limit + 1)
+    if len(data) > limit:
+        LOG.warning("bluetoothctl output exceeded %d bytes; truncating", limit)
+        return data[:limit], True
+    return data, False
 
 
 __all__ = ["BluetoothController", "ControllerCallbacks", "BluetoothCommandError"]
