@@ -244,16 +244,19 @@ class BluetoothController:
             try:
                 try:
                     await asyncio.wait_for(
-                        self._drive_btctl(proc, command_groups, out_f),
+                        self._drive_btctl(proc, command_groups, (out_f, err_f)),
                         timeout=timeout,
                     )
                 except TimeoutError:
                     raise BluetoothCommandError(
                         f"bluetoothctl timed out after {timeout}s"
                     ) from None
-                stdout, truncated = _read_capped(out_f, _MAX_OUTPUT_BYTES)
-                stderr, _ = _read_capped(err_f, _MAX_OUTPUT_BYTES)
-                if truncated:
+                stdout, out_truncated = _read_capped(out_f, _MAX_OUTPUT_BYTES)
+                stderr, err_truncated = _read_capped(err_f, _MAX_OUTPUT_BYTES)
+                # Either stream overrunning means the child misbehaved. Checking
+                # only stdout would let a stderr overrun exit "successfully", and
+                # would hand back a silently truncated message on failure.
+                if out_truncated or err_truncated:
                     raise BluetoothCommandError("bluetoothctl produced runaway output")
                 if proc.returncode != 0:
                     raise BluetoothCommandError(stderr.decode(errors="replace").strip())
@@ -267,7 +270,7 @@ class BluetoothController:
         self,
         proc: asyncio.subprocess.Process,
         command_groups: tuple[list[str], ...],
-        out_f,
+        capture_files,
     ) -> None:
         """Feed commands to bluetoothctl and wait for it to exit."""
         assert proc.stdin
@@ -289,7 +292,8 @@ class BluetoothController:
                 done, _ = await asyncio.wait({waiter}, timeout=_CAPTURE_POLL_SECONDS)
                 if waiter in done:
                     return
-                if os.fstat(out_f.fileno()).st_size > _MAX_CAPTURE_BYTES:
+                captured = sum(os.fstat(f.fileno()).st_size for f in capture_files)
+                if captured > _MAX_CAPTURE_BYTES:
                     raise BluetoothCommandError("bluetoothctl produced runaway output")
         finally:
             if not waiter.done():

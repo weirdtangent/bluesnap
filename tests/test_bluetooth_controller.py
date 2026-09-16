@@ -174,6 +174,23 @@ async def test_output_of_exactly_the_cap_is_not_truncated(tmp_path, monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_stderr_overrun_is_also_treated_as_runaway(tmp_path, monkeypatch):
+    """An overrun on stderr must fail the same way an stdout overrun does."""
+    path_dir = _fake_btctl(
+        tmp_path,
+        f"""
+        import sys
+        sys.stderr.write("e" * ({_MAX_OUTPUT_BYTES} + 1))
+        sys.stderr.flush()
+        sys.exit(0)
+        """,
+    )
+    controller = _controller(monkeypatch, path_dir)
+    with pytest.raises(BluetoothCommandError, match="runaway output"):
+        await controller._run_btctl(["info", MAC], timeout=20)
+
+
+@pytest.mark.asyncio
 async def test_btctl_calls_are_serialized(tmp_path, monkeypatch):
     """
     Overlapping invocations fight over the adapter, so the runner takes a lock.
