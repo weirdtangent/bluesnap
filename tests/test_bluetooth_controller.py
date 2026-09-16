@@ -3,9 +3,9 @@ Regression tests for the bluetoothctl subprocess runner.
 
 Two separate bugs are covered here.
 
-1. bluetoothctl (BlueZ 5.66) allocates ~900 MB of anonymous heap whenever its
-   stdout is a *pipe* -- regardless of whether anything drains it, and in both
-   the interactive and argv forms. Output is therefore captured through files.
+1. bluetoothctl (BlueZ 5.66) allocates ~850 MB of anonymous heap when driven as
+   an interactive shell, and essentially nothing when the same command is passed
+   as argv. Commands are therefore issued one process per command, argv-style.
 
 2. The original runner used ``asyncio.wait_for(proc.communicate(), ...)``, which
    buffers without bound and -- critically -- does not kill the child when it
@@ -44,11 +44,6 @@ def _fake_btctl(tmp_path, body: str):
 
 def _controller(monkeypatch, path_dir: str) -> BluetoothController:
     monkeypatch.setenv("PATH", path_dir + os.pathsep + os.environ["PATH"])
-    # Skip the hciconfig shell-out; irrelevant to the runner under test.
-    monkeypatch.setattr(
-        "bluesnap.bluetooth_controller.resolve_controller_identifier",
-        lambda adapter: adapter,
-    )
     config = BluetoothConfig(speaker=BluetoothSpeakerConfig(name="test", mac=MAC))
     return BluetoothController(config)
 
@@ -100,7 +95,6 @@ async def test_btctl_normal_output_is_returned(tmp_path, monkeypatch):
         tmp_path,
         """
         import sys
-        sys.stdin.read()
         sys.stdout.write("Device AA:BB:CC:DD:EE:FF\\n\\tConnected: yes\\n")
         """,
     )

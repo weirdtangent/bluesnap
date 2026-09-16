@@ -17,30 +17,31 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from .config import BluetoothConfig, BluetoothSpeakerConfig
-from .utils import resolve_controller_identifier
 
 LOG = logging.getLogger(__name__)
 
-# bluetoothctl (BlueZ 5.66) allocates ~900 MB of anonymous heap whenever its
-# stdout is a PIPE. Measured on the same host, same command, same adapter:
+# bluetoothctl (BlueZ 5.66) allocates ~850 MB of anonymous heap when it is driven
+# as an interactive shell -- commands fed to its stdin -- and essentially nothing
+# when the same command is passed as argv. Measured on one host, one adapter, with
+# the service stopped so the sampler could not latch onto its children:
 #
-#     stdout -> /dev/null        1 MB
-#     stdout -> regular file     1 MB
-#     stdout -> pipe (drained) 943 MB
-#     stdout -> pipe (ignored) 907 MB
+#     bluetoothctl info <mac>                      0 MB   (argv, stdout /dev/null)
+#     bluetoothctl info <mac> | cat                0 MB   (argv, stdout a pipe)
+#     printf 'info <mac>\nquit\n' | bluetoothctl  845 MB   (interactive)
 #
-# Draining the pipe promptly makes no difference, and it is not specific to the
-# interactive form -- `bluetoothctl info <mac>` piped to `cat` does it too. So we
-# capture output through temporary FILES rather than pipes. Only stdin stays a
-# pipe; that side is fine.
+# The stdout target is irrelevant; only the invocation style matters, and the
+# balloon happens while producing ~64 bytes of output. So every command below is
+# issued in argv form, one process per command.
 #
-# Everything else here (the cap, the timeout, the unconditional reap) is belt and
-# braces for a wedged child, which is a separate failure from the pipe balloon.
+# `select` is not used: these hosts have a single controller and BlueZ acts on the
+# default one. `agent on` / `default-agent` are likewise dropped -- an agent only
+# lives for the duration of the shell session, so registering one in a one-shot
+# process achieves nothing. A paired, trusted speaker reconnects without it.
+#
+# The cap, timeout, capture-size guard and unconditional reap all remain. They
+# cover a *wedged* child, which is a separate failure from the balloon.
 _MAX_OUTPUT_BYTES = 1 << 20  # 1 MiB -- most we hand back to a caller
-# Capturing to a file removes the pipe deadlock, but it also means a spewing child
-# writes to disk instead of blocking. Poll the size and cut it off well before that
-# matters on a Pi's SD card.
-_MAX_CAPTURE_BYTES = 32 << 20  # 32 MiB
+_MAX_CAPTURE_BYTES = 32 << 20  # 32 MiB -- hard stop for a spewing child
 _CAPTURE_POLL_SECONDS = 0.25
 _DEFAULT_BTCTL_TIMEOUT = 30
 
@@ -77,7 +78,6 @@ class BluetoothController:
         self._speaker = config.speaker
         self._callbacks = callbacks or ControllerCallbacks()
         self._loop = loop or asyncio.get_event_loop()
-        self._controller_id = resolve_controller_identifier(config.adapter)
 
         self._running = False
         self._tasks: set[asyncio.Task[None]] = set()
@@ -135,10 +135,7 @@ class BluetoothController:
             now = datetime.utcnow()
             if now - self._last_keepalive >= timedelta(seconds=interval):
                 try:
-                    await self._run_btctl(
-                        ["select", self._controller_id],
-                        ["info", self._speaker.mac],
-                    )
+                    await self._run_btctl(["info", self._speaker.mac])
                     LOG.debug("sent keepalive to '%s'", self._speaker.name)
                 except BluetoothCommandError as exc:
                     LOG.debug("keepalive failed for '%s': %s", self._speaker.name, exc)
@@ -148,19 +145,13 @@ class BluetoothController:
     async def _prepare_adapter(self) -> None:
         """Select the adapter and ensure it is powered on and discoverable."""
         await self._run_btctl(
-            ["select", self._controller_id],
             ["power", "on"],
             ["pairable", "on"],
-            ["agent", "on"],
-            ["default-agent"],
         )
 
     async def _trust_device(self, mac: str) -> None:
         """Mark the speaker as trusted so the OS reconnects automatically."""
-        await self._run_btctl(
-            ["select", self._controller_id],
-            ["trust", mac],
-        )
+        await self._run_btctl(["trust", mac])
 
     async def _connect_if_needed(self) -> None:
         """Connect the speaker when disconnected or when we have not tried recently."""
@@ -172,20 +163,14 @@ class BluetoothController:
             return
         self._last_connect_attempt = now
         LOG.info("connecting bluetooth speaker '%s'", self._speaker.name)
-        await self._run_btctl(
-            ["select", self._controller_id],
-            ["connect", self._speaker.mac],
-        )
+        await self._run_btctl(["connect", self._speaker.mac])
         self._connected = True
         if self._callbacks.on_connected:
             await self._callbacks.on_connected(self._speaker)
 
     async def _is_connected(self) -> bool:
         """Return True when bluetoothctl reports the device is connected."""
-        output = await self._run_btctl(
-            ["select", self._controller_id],
-            ["info", self._speaker.mac],
-        )
+        output = await self._run_btctl(["info", self._speaker.mac])
         for line in output.splitlines():
             if line.strip().lower().startswith("connected:"):
                 result = line.strip().split(":")[1].strip().lower() == "yes"
@@ -213,38 +198,41 @@ class BluetoothController:
         timeout: int = _DEFAULT_BTCTL_TIMEOUT,
     ) -> str:
         """
-        Run bluetoothctl with provided commands and return stdout.
+        Run each command through ``bluetoothctl`` in argv form, returning the
+        concatenated stdout.
 
-        Each element in ``command_groups`` represents a command followed by
-        its arguments, e.g. ``["connect", "AA:BB:CC:DD:EE:FF"]``.
+        Each element of ``command_groups`` is one command plus its arguments,
+        e.g. ``["connect", "AA:BB:CC:DD:EE:FF"]``, and becomes its own process --
+        see the note at the top of this module for why they are not fed to a
+        single interactive shell.
 
         Invocations are serialized: the watchdog and keepalive loops both call
-        this, and overlapping bluetoothctl processes fight over the adapter.
+        this, and concurrent bluetoothctl processes fight over the adapter.
         """
 
         async with self._btctl_lock:
-            return await self._run_btctl_once(command_groups, timeout)
+            chunks = []
+            for group in command_groups:
+                chunks.append(await self._run_btctl_once(group, timeout))
+            return "".join(chunks)
 
-    async def _run_btctl_once(
-        self,
-        command_groups: tuple[list[str], ...],
-        timeout: int,
-    ) -> str:
-        # Files, not pipes -- see the note at the top of this module.
+    async def _run_btctl_once(self, command: list[str], timeout: int) -> str:
+        LOG.debug("btctl <<< %s", " ".join(command))
         with (
             tempfile.TemporaryFile() as out_f,
             tempfile.TemporaryFile() as err_f,
         ):
             proc = await asyncio.create_subprocess_exec(
                 "bluetoothctl",
-                stdin=asyncio.subprocess.PIPE,
+                *command,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=out_f,
                 stderr=err_f,
             )
             try:
                 try:
                     await asyncio.wait_for(
-                        self._drive_btctl(proc, command_groups, (out_f, err_f)),
+                        self._await_btctl(proc, (out_f, err_f)),
                         timeout=timeout,
                     )
                 except TimeoutError:
@@ -263,29 +251,11 @@ class BluetoothController:
                 return stdout.decode(errors="replace")
             finally:
                 # wait_for() cancels the *coroutine*, it does not kill the child.
-                # Without this, every timeout orphans a spinning process.
+                # Without this, every timeout orphans a process.
                 await self._reap(proc)
 
-    async def _drive_btctl(
-        self,
-        proc: asyncio.subprocess.Process,
-        command_groups: tuple[list[str], ...],
-        capture_files,
-    ) -> None:
-        """Feed commands to bluetoothctl and wait for it to exit."""
-        assert proc.stdin
-        for group in command_groups:
-            cmd = " ".join(group)
-            LOG.debug("btctl <<< %s", cmd)
-            proc.stdin.write(cmd.encode("utf-8") + b"\n")
-        proc.stdin.write(b"quit\n")
-        await proc.stdin.drain()
-        # Close stdin so bluetoothctl sees EOF; it will not exit on "quit" alone
-        # when it is wedged, and would otherwise block here forever.
-        proc.stdin.close()
-        with suppress(BrokenPipeError, ConnectionResetError):
-            await proc.stdin.wait_closed()
-
+    async def _await_btctl(self, proc: asyncio.subprocess.Process, capture_files) -> None:
+        """Wait for the child, cutting it off if it writes absurd amounts."""
         waiter = asyncio.ensure_future(proc.wait())
         try:
             while True:
