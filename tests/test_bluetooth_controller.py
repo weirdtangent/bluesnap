@@ -20,6 +20,7 @@ import textwrap
 import pytest
 
 from bluesnap.bluetooth_controller import (
+    _MAX_OUTPUT_BYTES,
     BluetoothCommandError,
     BluetoothController,
 )
@@ -120,6 +121,51 @@ async def test_silent_hang_hits_the_timeout_and_is_killed(tmp_path, monkeypatch)
 
     await asyncio.sleep(0.2)
     assert not _surviving_fake_btctl(path_dir)
+
+
+@pytest.mark.asyncio
+async def test_finite_child_that_overruns_the_cap_still_fails(tmp_path, monkeypatch):
+    """
+    Overrunning the cap must fail even when the child exits cleanly.
+
+    Truncation is signalled explicitly rather than inferred from
+    ``proc.returncode``: a finite child can overrun the cap and still exit 0,
+    and the event loop may reap it before we look at the return code.
+    """
+    path_dir = _fake_btctl(
+        tmp_path,
+        """
+        import sys
+        sys.stdout.write("x" * (2 << 20))
+        sys.stdout.flush()
+        sys.exit(0)
+        """,
+    )
+    controller = _controller(monkeypatch, path_dir)
+    with pytest.raises(BluetoothCommandError, match="runaway output"):
+        await controller._run_btctl(["info", MAC], timeout=20)
+
+
+@pytest.mark.asyncio
+async def test_output_of_exactly_the_cap_is_not_truncated(tmp_path, monkeypatch):
+    """
+    Exactly ``_MAX_OUTPUT_BYTES`` is legitimate output, not a runaway.
+
+    The cap is exceeded only by going *over* it, so a stream that lands
+    precisely on the limit has to reach EOF normally rather than being
+    reported as truncated.
+    """
+    path_dir = _fake_btctl(
+        tmp_path,
+        f"""
+        import sys
+        sys.stdout.write("y" * {_MAX_OUTPUT_BYTES})
+        sys.stdout.flush()
+        """,
+    )
+    controller = _controller(monkeypatch, path_dir)
+    out = await controller._run_btctl(["info", MAC], timeout=20)
+    assert len(out) == _MAX_OUTPUT_BYTES
 
 
 @pytest.mark.asyncio
