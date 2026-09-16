@@ -24,6 +24,8 @@ dependencies = [
 dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-timeout>=2.4.0,<2.5.0",
     "ruff>=0.16.7",
 ]
 
@@ -46,5 +48,7 @@ line-ending = "lf"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra"
+addopts = "-ra --timeout=60"
 pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
