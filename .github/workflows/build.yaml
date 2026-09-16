@@ -62,12 +62,47 @@ jobs:
         if: contains(needs.lint.result, 'failure') || contains(needs.lint.result, 'cancelled') || contains(needs.lint.result, 'skipped')
         run: exit 1
 
+  test:
+    name: Tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
+
+      - name: Pytest
+        run: uv run --python ${{ matrix.python-version }} pytest
+
+  # Stable check name for branch protection — succeeds only if every
+  # matrix entry of `test` succeeded.
+  test-gate:
+    name: Tests
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify test matrix succeeded
+        if: contains(needs.test.result, 'failure') || contains(needs.test.result, 'cancelled') || contains(needs.test.result, 'skipped')
+        run: exit 1
+
   release:
     name: Semantic Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs:
       - lint-gate
+      - test-gate
 
     outputs:
       published: ${{ steps.semrel.outputs.new_release_published }}
