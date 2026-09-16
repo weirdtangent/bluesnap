@@ -1,13 +1,18 @@
 """
 Regression tests for the bluetoothctl subprocess runner.
 
-The bug these cover: bluetoothctl attached to a pipe can spin and emit output
-without ever reaching EOF. The original runner used
-``asyncio.wait_for(proc.communicate(), ...)``, which buffers without bound and --
-critically -- does not kill the child when it times out, so every stuck call
-orphaned a process that kept allocating. On an affected device that reached
-~900 MB RSS per orphan within seconds and eventually took the host off the
-network entirely.
+Two separate bugs are covered here.
+
+1. bluetoothctl (BlueZ 5.66) allocates ~900 MB of anonymous heap whenever its
+   stdout is a *pipe* -- regardless of whether anything drains it, and in both
+   the interactive and argv forms. Output is therefore captured through files.
+
+2. The original runner used ``asyncio.wait_for(proc.communicate(), ...)``, which
+   buffers without bound and -- critically -- does not kill the child when it
+   times out, so every stuck call orphaned a process that kept allocating.
+
+Together those took an affected device off the network until it was
+power-cycled by hand.
 """
 
 from __future__ import annotations
@@ -62,9 +67,9 @@ async def test_runaway_btctl_is_killed_and_does_not_hang(tmp_path, monkeypatch):
     )
     controller = _controller(monkeypatch, path_dir)
 
-    # Caught by the output cap in milliseconds -- it never reaches the timeout.
+    # Caught by the capture-size guard, well before the timeout.
     with pytest.raises(BluetoothCommandError, match="runaway output"):
-        await controller._run_btctl(["info", MAC], timeout=2)
+        await controller._run_btctl(["info", MAC], timeout=25)
 
     # The child must be gone: the original code left it running and spinning.
     await asyncio.sleep(0.2)
