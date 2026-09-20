@@ -225,6 +225,16 @@ def _install_if_changed(source: Path, target: Path, mode: str) -> bool:
     return True
 
 
+def _unit_is_active(unit: str) -> bool:
+    return (
+        subprocess.run(
+            ["systemctl", "is-active", "--quiet", unit],
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
 def ensure_wifi_powersave_off(repo_root: Path) -> None:
     """Turn off brcmfmac Wi-Fi power-save, the Pi's silent-wedge trigger.
 
@@ -246,21 +256,30 @@ def ensure_wifi_powersave_off(repo_root: Path) -> None:
     # Derive the interface name rather than assuming wlan0, in case predictable
     # names (wlp*) are in use. Best-effort: a wired host simply has none.
     #
-    # shutil.which() first because subprocess raises FileNotFoundError when the
-    # binary is absent -- check=False only suppresses a non-zero *exit*. Letting
-    # that escape would abort setup before ensure_hardware_watchdog() runs, so a
-    # host missing `iw` would lose the watchdog too. The durable NetworkManager
-    # drop-in above is already in place either way; only the toggle-it-now step
-    # needs `iw`, and it applies on the next reconnect regardless.
-    if not shutil.which("iw"):
-        logging.warning("iw not found; power-save is set for the next reconnect only")
-        return
+    # Query through sudo, not directly. `iw` ships in /usr/sbin, which is not on
+    # an unprivileged user's PATH on Raspberry Pi OS -- and bluesnap-setup runs
+    # as the bluesnap user. A bare shutil.which("iw") therefore reports "not
+    # found" on a host where iw is installed and working, silently skipping the
+    # toggle; observed on a live board where power-save stayed on afterwards.
+    # sudo resolves it via secure_path, and going through sudo also means a
+    # genuinely absent binary comes back as a non-zero exit rather than the
+    # FileNotFoundError that a direct call raises (check=False suppresses only a
+    # non-zero *exit*). That matters: this step runs before the watchdog is
+    # installed, so an exception here would cost the board both mechanisms.
     iface = subprocess.run(
-        ["iw", "dev"],
+        ["sudo", "iw", "dev"],
         check=False,
         capture_output=True,
         text=True,
     )
+    if iface.returncode != 0:
+        # The durable NetworkManager drop-in above is already in place, so
+        # power-save is still disabled from the next reconnect onward.
+        logging.warning(
+            "could not run `iw dev` (%s); power-save is set for the next reconnect only",
+            (iface.stderr or "").strip() or f"exit {iface.returncode}",
+        )
+        return
     for line in iface.stdout.splitlines():
         parts = line.split()
         if len(parts) == 2 and parts[0] == "Interface":
@@ -324,17 +343,26 @@ def ensure_hardware_watchdog(repo_root: Path) -> None:
         # one, so an updated config would otherwise not apply until a reboot.
         run(["sudo", "systemctl", "restart", "watchdog"], check=False)
 
-    # Confirm the handoff actually landed. Both commands above are check=False
-    # so that a failure surfaces here, as one actionable message about the state
-    # the board is really in, rather than as a CalledProcessError that aborts
-    # setup before the bridge itself is deployed. The watchdog is a safety net,
-    # not a prerequisite for playing audio, so a failure here must not stop the
-    # rest of setup -- but it must be loud, because PID 1 has now let go.
-    active = subprocess.run(
-        ["systemctl", "is-active", "--quiet", "watchdog"],
-        check=False,
-    )
-    if active.returncode != 0:
+    # A restart of Debian's watchdog.service routinely leaves it stopped. The
+    # packaged unit carries
+    #     ExecStopPost=/bin/sh -c '[ $run_wd_keepalive != 1 ] || false'
+    # which exits 1 by design when run_wd_keepalive=1 (the shipped default) so
+    # that OnFailure= hands /dev/watchdog to wd_keepalive during the gap. systemd
+    # sees the stop half fail and cancels the queued start ("Job for
+    # watchdog.service canceled"), so the daemon never comes back. Observed on a
+    # live board, which sat with no watchdog until started by hand. An explicit
+    # start picks it up; it is a no-op when the service is already running.
+    if not _unit_is_active("watchdog"):
+        logging.info("watchdog.service did not come back from restart; starting it")
+        run(["sudo", "systemctl", "start", "watchdog"], check=False)
+
+    # Confirm the handoff actually landed. Every command above is check=False so
+    # that a failure surfaces here, as one actionable message about the state the
+    # board is really in, rather than as a CalledProcessError that aborts setup
+    # before the bridge itself is deployed. The watchdog is a safety net, not a
+    # prerequisite for playing audio, so a failure here must not stop the rest of
+    # setup -- but it must be loud, because PID 1 has now let go.
+    if not _unit_is_active("watchdog"):
         logging.error(
             "watchdog.service is not active: this board currently has NO hardware "
             "watchdog, and systemd's runtime watchdog has been disabled in favour "
