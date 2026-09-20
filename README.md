@@ -138,6 +138,26 @@ watchdog loop, and the MQTT bridge exposes telemetry/control entities in Home As
 Each run of `bluesnap-setup` reapplies the systemd unit, reloads
 the daemon, and restarts the service, so it is safe to run after every `git pull`.
 
+### Host recovery
+
+Bluesnap runs headless on Wi-Fi, so a wedged radio means no SSH, no telemetry, and a speaker
+silently gone from the Snapcast mesh — with no PoE port and no smart plug to power-cycle it
+remotely. Two mechanisms, both applied by `bluesnap-setup`, keep that from needing a house call:
+
+- **Wi-Fi power-save off.** `brcmfmac` power-save lets the radio sleep between beacons, which on
+  these boards can leave the host unreachable while the AP still reports it associated with a
+  healthy signal. A NetworkManager drop-in disables it for every Wi-Fi connection, and setup also
+  toggles it off on the live interface so it applies without a reconnect.
+- **Health-aware hardware watchdog.** The `watchdog(8)` daemon pets `/dev/watchdog` only while
+  `bluesnap-net-check.sh` can complete a real TCP round-trip to an upstream host. A plain gateway
+  ping is not enough — wedged firmware keeps answering those — so the check connects to the
+  configured DNS servers on TCP/53. After 3 minutes of continuous failure the daemon stops petting
+  and the BCM2835 timer resets the board. systemd's own `RuntimeWatchdogSec` is disabled so the
+  daemon can own the device; PID 1's watchdog only catches a total kernel hang, not a dead network.
+
+Override or extend the check's targets by setting `TARGETS=( "host:port" ... )` in
+`/etc/default/bluesnap-net-check`.
+
 ### Audio backend notes
 
 The default configuration targets PipeWire on Raspberry Pi OS. Console auto-login is required so

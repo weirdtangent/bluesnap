@@ -8,8 +8,10 @@ Responsibilities:
     would otherwise run a second, broken client alongside the bridge's own.
 2. Ensure Astral's uv CLI is available.
 3. Create/refresh the project virtualenv and install dependencies.
-4. Install or update the systemd unit so the bridge starts on boot.
-5. Restart the service so code changes take effect immediately.
+4. Disable Wi-Fi power-save, which wedges the Pi's brcmfmac radio.
+5. Install a health-aware hardware watchdog so a wedge self-recovers.
+6. Install or update the systemd unit so the bridge starts on boot.
+7. Restart the service so code changes take effect immediately.
 """
 
 from __future__ import annotations
@@ -24,10 +26,15 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-APT_PACKAGES = ["bluez", "snapclient", "python3-venv", "curl"]
+APT_PACKAGES = ["bluez", "snapclient", "python3-venv", "curl", "watchdog"]
 BLUETOOTH_GROUP = "bluetooth"
 SERVICE_NAME = "bluesnap.service"
 UV_INSTALL_SCRIPT = "https://astral.sh/uv/install.sh"
+
+NM_CONF_DIR = Path("/etc/NetworkManager/conf.d")
+NET_CHECK_PATH = Path("/usr/local/sbin/bluesnap-net-check.sh")
+WATCHDOG_CONF = Path("/etc/watchdog.conf")
+RUNTIME_WATCHDOG_DROPIN = Path("/etc/systemd/system.conf.d/disable-runtime-watchdog.conf")
 
 
 def parse_args() -> argparse.Namespace:
@@ -192,6 +199,104 @@ def ensure_adapter_powered() -> None:
     run(["sudo", "bash", "-lc", command], check=False)
 
 
+def _install_if_changed(source: Path, target: Path, mode: str) -> bool:
+    """Install ``source`` at ``target`` only when the contents differ.
+
+    Returns True when the file was actually written. Callers use that to decide
+    whether a disruptive follow-up (restarting the watchdog daemon, re-execing
+    PID 1) is warranted: ``bluesnap-setup`` runs after every ``git pull``, so
+    doing those unconditionally would bounce the board's recovery mechanism on
+    every routine upgrade.
+    """
+    if not source.exists():
+        raise FileNotFoundError(f"config file missing: {source}")
+    # cmp's stderr is silenced for the first-run case where target is absent.
+    same = subprocess.run(
+        ["sudo", "cmp", "-s", str(source), str(target)],
+        check=False,
+        stderr=subprocess.DEVNULL,
+    )
+    if same.returncode == 0:
+        logging.info("%s already up to date", target)
+        return False
+    run(["sudo", "install", "-D", "-m", mode, str(source), str(target)])
+    logging.info("installed %s", target)
+    return True
+
+
+def ensure_wifi_powersave_off(repo_root: Path) -> None:
+    """Turn off brcmfmac Wi-Fi power-save, the Pi's silent-wedge trigger.
+
+    The NetworkManager drop-in is the durable, interface-agnostic mechanism (NM
+    applies it to every Wi-Fi connection); the runtime ``iw`` toggle below just
+    makes it take effect now without a reconnect.
+
+    Deliberately non-disruptive: the Wi-Fi interface is never bounced, because
+    re-associating is itself a way to provoke the wedge this is meant to prevent.
+    """
+    logging.info("disabling Wi-Fi power-save")
+    _install_if_changed(
+        repo_root / "config/system/NetworkManager/wifi-powersave-off.conf",
+        NM_CONF_DIR / "wifi-powersave-off.conf",
+        "0644",
+    )
+    run(["sudo", "nmcli", "general", "reload", "conf"], check=False)
+
+    # Derive the interface name rather than assuming wlan0, in case predictable
+    # names (wlp*) are in use. Best-effort: a wired host simply has none.
+    iface = subprocess.run(
+        ["iw", "dev"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    for line in iface.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == "Interface":
+            logging.info("turning power-save off on %s", parts[1])
+            run(["sudo", "iw", "dev", parts[1], "set", "power_save", "off"], check=False)
+            break
+    else:
+        logging.info("no Wi-Fi interface found; skipping runtime power-save toggle")
+
+
+def ensure_hardware_watchdog(repo_root: Path) -> None:
+    """Install the health-aware hardware watchdog.
+
+    The watchdog(8) daemon pets /dev/watchdog only while
+    ``bluesnap-net-check.sh`` reports a working datapath, so a silent network
+    wedge -- systemd alive, radio associated, nothing reachable and nothing
+    logged -- hardware-resets the board instead of waiting for someone to notice
+    and walk over to it. Bluesnap is wireless-only, so there is no PoE port and
+    no smart plug to cycle it remotely; this is the only in-band recovery path.
+    """
+    logging.info("configuring hardware watchdog")
+    net_check = repo_root / "bin" / "bluesnap-net-check.sh"
+    _install_if_changed(net_check, NET_CHECK_PATH, "0755")
+
+    conf_changed = _install_if_changed(
+        repo_root / "config/system/watchdog/watchdog.conf",
+        WATCHDOG_CONF,
+        "0644",
+    )
+
+    if _install_if_changed(
+        repo_root / "config/system/watchdog/disable-runtime-watchdog.conf",
+        RUNTIME_WATCHDOG_DROPIN,
+        "0644",
+    ):
+        # Re-exec PID 1 so it picks up RuntimeWatchdogSec=0 and releases
+        # /dev/watchdog for the daemon. Only when the drop-in actually changed,
+        # since daemon-reexec is disruptive on a routine re-run.
+        run(["sudo", "systemctl", "daemon-reexec"])
+
+    run(["sudo", "systemctl", "enable", "--now", "watchdog"])
+    if conf_changed:
+        # `enable --now` starts a stopped service but will NOT restart a running
+        # one, so an updated config would otherwise not apply until a reboot.
+        run(["sudo", "systemctl", "restart", "watchdog"])
+
+
 def ensure_console_autologin(user: str) -> None:
     """Configure tty1 to auto-login the specified user."""
 
@@ -270,6 +375,9 @@ def main() -> int:
     ensure_bluetooth_service()
     ensure_rfkill_unblocked()
     ensure_adapter_powered()
+    ensure_wifi_powersave_off(repo_root)
+    # Must follow ensure_apt_packages(): the watchdog daemon comes from apt.
+    ensure_hardware_watchdog(repo_root)
 
     if not args.skip_systemd:
         install_systemd_unit(repo_root, config_path)
