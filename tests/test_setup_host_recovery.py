@@ -38,36 +38,49 @@ def _flat(commands: list[list[str]]) -> str:
     return " | ".join(" ".join(c) for c in commands)
 
 
-def test_powersave_survives_missing_iw(tmp_path, monkeypatch, recorder):
-    """A host without `iw` still gets the durable drop-in, and setup continues.
+def test_powersave_survives_unusable_iw(tmp_path, monkeypatch, recorder):
+    """A host where `iw dev` fails still gets the durable drop-in, and continues.
 
-    subprocess raises FileNotFoundError when the binary is absent -- check=False
-    only suppresses a non-zero exit -- and this step runs before the watchdog is
-    installed, so an escape here would cost the board both mechanisms.
+    This step runs before the watchdog is installed, so an exception escaping
+    here would cost the board both mechanisms rather than just the toggle.
     """
     commands, installed = recorder
-    monkeypatch.setattr(setup.shutil, "which", lambda name: None)
-
-    setup.ensure_wifi_powersave_off(tmp_path)
-
-    assert any("wifi-powersave-off.conf" in str(t) for _, t in installed)
-    assert "iw dev" not in _flat(commands)
-
-
-def test_powersave_toggles_the_live_interface(tmp_path, monkeypatch, recorder):
-    commands, _ = recorder
-    monkeypatch.setattr(setup.shutil, "which", lambda name: f"/usr/sbin/{name}")
     monkeypatch.setattr(
         setup.subprocess,
         "run",
         lambda *a, **kw: setup.subprocess.CompletedProcess(
-            a[0], 0, stdout="phy#0\n\tInterface wlan0\n\t\ttype managed\n", stderr=""
+            a[0], 1, stdout="", stderr="sudo: iw: command not found"
         ),
     )
 
     setup.ensure_wifi_powersave_off(tmp_path)
 
-    assert "iw dev wlan0 set power_save off" in _flat(commands)
+    assert any("wifi-powersave-off.conf" in str(t) for _, t in installed)
+    assert "set power_save off" not in _flat(commands)
+
+
+def test_powersave_probes_iw_through_sudo(tmp_path, monkeypatch, recorder):
+    """`iw` lives in /usr/sbin, off an unprivileged PATH; probe it via sudo.
+
+    Probing it any other way reports "not found" on a host where iw is installed
+    and working, silently skipping the toggle -- observed on a live board that
+    was left with power-save still enabled.
+    """
+    commands, _ = recorder
+    probes: list[list[str]] = []
+
+    def fake_run(cmd, *a, **kw):
+        probes.append(cmd)
+        return setup.subprocess.CompletedProcess(
+            cmd, 0, stdout="phy#0\n\tInterface wlan0\n\t\ttype managed\n", stderr=""
+        )
+
+    monkeypatch.setattr(setup.subprocess, "run", fake_run)
+
+    setup.ensure_wifi_powersave_off(tmp_path)
+
+    assert ["sudo", "iw", "dev"] in probes
+    assert "sudo iw dev wlan0 set power_save off" in _flat(commands)
 
 
 def test_watchdog_handoff_skipped_without_device(tmp_path, monkeypatch, recorder):
@@ -96,9 +109,7 @@ def test_watchdog_handoff_runs_when_device_present(tmp_path, monkeypatch, record
     device = tmp_path / "watchdog"
     device.write_text("")
     monkeypatch.setattr(setup, "WATCHDOG_DEVICE", device)
-    monkeypatch.setattr(
-        setup.subprocess, "run", lambda *a, **kw: setup.subprocess.CompletedProcess(a[0], 0)
-    )
+    monkeypatch.setattr(setup, "_unit_is_active", lambda unit: True)
 
     setup.ensure_hardware_watchdog(tmp_path)
 
@@ -106,10 +117,34 @@ def test_watchdog_handoff_runs_when_device_present(tmp_path, monkeypatch, record
     assert any("disable-runtime-watchdog" in str(t) for _, t in installed)
     assert "daemon-reexec" in flat
     assert "systemctl enable --now watchdog" in flat
+    # Already running, so no redundant start.
+    assert "systemctl start watchdog" not in flat
+
+
+def test_cancelled_restart_is_followed_by_an_explicit_start(tmp_path, monkeypatch, recorder):
+    """Debian's unit makes `restart` leave the daemon stopped; start it anyway.
+
+    watchdog.service carries ExecStopPost=... || false, which exits 1 by design
+    when run_wd_keepalive=1 (the shipped default). systemd sees the stop half
+    fail and cancels the queued start, so a config change silently disarms the
+    board -- observed live, where it sat with no watchdog until started by hand.
+    """
+    commands, _ = recorder
+    device = tmp_path / "watchdog"
+    device.write_text("")
+    monkeypatch.setattr(setup, "WATCHDOG_DEVICE", device)
+
+    # Inactive after the restart, active once explicitly started.
+    states = iter([False, True])
+    monkeypatch.setattr(setup, "_unit_is_active", lambda unit: next(states))
+
+    setup.ensure_hardware_watchdog(tmp_path)
+
+    assert "sudo systemctl start watchdog" in _flat(commands)
 
 
 def test_inactive_watchdog_is_reported_not_raised(tmp_path, monkeypatch, recorder, caplog):
-    """A daemon that fails to start must be loud, but must not abort setup.
+    """A daemon that will not start must be loud, but must not abort setup.
 
     Raising here would skip install_systemd_unit() and leave the bridge itself
     un-deployed -- trading a missing safety net for a broken speaker.
@@ -117,11 +152,22 @@ def test_inactive_watchdog_is_reported_not_raised(tmp_path, monkeypatch, recorde
     device = tmp_path / "watchdog"
     device.write_text("")
     monkeypatch.setattr(setup, "WATCHDOG_DEVICE", device)
-    monkeypatch.setattr(
-        setup.subprocess, "run", lambda *a, **kw: setup.subprocess.CompletedProcess(a[0], 3)
-    )
+    monkeypatch.setattr(setup, "_unit_is_active", lambda unit: False)
 
     with caplog.at_level("ERROR"):
         setup.ensure_hardware_watchdog(tmp_path)
 
     assert "NO hardware watchdog" in caplog.text
+
+
+def test_unit_is_active_reads_systemctl(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *a, **kw):
+        calls.append(cmd)
+        return setup.subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(setup.subprocess, "run", fake_run)
+
+    assert setup._unit_is_active("watchdog") is True
+    assert calls == [["systemctl", "is-active", "--quiet", "watchdog"]]
