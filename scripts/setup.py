@@ -110,16 +110,37 @@ def disable_stock_snapclient() -> None:
 
 
 def ensure_uv() -> str:
+    """Return a path to uv, installing it first if the host has none.
+
+    The installer drops uv in ~/.local/bin and appends that directory to the
+    user's shell profile -- which does nothing for the non-interactive session
+    this usually runs in. A plain ``shutil.which("uv")`` afterwards therefore
+    misses a uv that was just installed successfully, and setup aborts on every
+    fresh board. So pin the install directory, then put it on PATH for this
+    process (children inherit it) before looking again.
+    """
     uv_path = shutil.which("uv")
     if uv_path:
         logging.info("uv already present at %s", uv_path)
         return uv_path
-    logging.info("installing uv via %s", UV_INSTALL_SCRIPT)
+
+    install_dir = Path.home() / ".local" / "bin"
+    logging.info("installing uv via %s into %s", UV_INSTALL_SCRIPT, install_dir)
+    # Pin the location rather than letting the script choose, so the lookup
+    # below knows where to look. Everything else about the install is left
+    # alone, including the profile edit, which is what a human wants later.
+    env = {**os.environ, "UV_INSTALL_DIR": str(install_dir)}
     install_cmd = f"curl -LsSf {UV_INSTALL_SCRIPT} | sh"
-    run(["/bin/bash", "-c", install_cmd])
+    run(["/bin/bash", "-c", install_cmd], env=env)
+
+    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    if str(install_dir) not in path_entries:
+        logging.info("adding %s to PATH for this run", install_dir)
+        os.environ["PATH"] = os.pathsep.join([str(install_dir), *path_entries])
+
     uv_path = shutil.which("uv")
     if not uv_path:
-        raise RuntimeError("uv installation failed; ensure ~/.local/bin is on PATH")
+        raise RuntimeError(f"uv installation failed; no uv found in {install_dir} or on PATH")
     logging.info("uv installed at %s", uv_path)
     return uv_path
 
