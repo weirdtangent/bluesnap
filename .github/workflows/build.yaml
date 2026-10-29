@@ -20,10 +20,10 @@ jobs:
         python-version: ['3.12', '3.13', '3.14', '3.15']
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -45,7 +45,7 @@ jobs:
       # pyproject.toml would otherwise go unnoticed indefinitely.
       - name: Set up uv
         if: matrix.python-version == '3.12'
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
 
@@ -80,10 +80,10 @@ jobs:
         python-version: ['3.12', '3.13', '3.14', '3.15']
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
 
@@ -122,19 +122,19 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20
 
